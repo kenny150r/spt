@@ -225,9 +225,38 @@ export function GrowthView({ baby }: { baby: Baby }) {
     const zThen =
       ageThen >= 0 ? estimateZScore(baby.sex, ageThen, best.weight_kg) : null
 
-    const expected = expectedGramsPerDay(ageNow)
+    // "Typical" gain over the same window: the actual delta on the WHO
+    // 50th-percentile curve at the baby's (corrected) age. This is age-specific
+    // (newborns gain ~30 g/day, 6-month-olds ~12 g/day) so it's a better
+    // benchmark than a hard-coded range. Falls back to the static reference
+    // table only when corrected age is still negative (no WHO data pre-term).
+    let expectedGPerDay: number | null = null
+    let expectedSource: 'who50' | 'preterm' | null = null
+    if (ageNow >= 0 && ageThen >= 0) {
+      const wNow = weightAtZ(baby.sex, ageNow, 0)
+      const wThen = weightAtZ(baby.sex, ageThen, 0)
+      if (wNow != null && wThen != null) {
+        expectedGPerDay = ((wNow - wThen) * 1000) / days
+        expectedSource = 'who50'
+      }
+    }
+    if (expectedGPerDay == null) {
+      const fallback = expectedGramsPerDay(ageNow)
+      if (fallback) {
+        expectedGPerDay = (fallback.low + fallback.high) / 2
+        expectedSource = 'preterm'
+      }
+    }
 
-    return { days, deltaKg, gPerDay, zNow, zThen, expected }
+    return {
+      days,
+      deltaKg,
+      gPerDay,
+      zNow,
+      zThen,
+      expectedGPerDay,
+      expectedSource,
+    }
   }, [latest, weights, baby, isPreterm])
 
   return (
@@ -302,8 +331,8 @@ export function GrowthView({ baby }: { baby: Baby }) {
               <div className="text-xs text-slate-500">
                 <span
                   className={
-                    weeklyDelta.expected
-                      ? weeklyDelta.gPerDay >= weeklyDelta.expected.low
+                    weeklyDelta.expectedGPerDay != null
+                      ? weeklyDelta.gPerDay >= weeklyDelta.expectedGPerDay
                         ? 'text-emerald-700 font-medium'
                         : 'text-amber-700 font-medium'
                       : ''
@@ -313,11 +342,15 @@ export function GrowthView({ baby }: { baby: Baby }) {
                     weeklyDelta.gPerDay.toFixed(0)}{' '}
                   g/day
                 </span>
-                {weeklyDelta.expected && (
+                {weeklyDelta.expectedGPerDay != null && (
                   <span className="text-slate-400">
                     {' '}· typical{' '}
-                    {weeklyDelta.expected.low}–{weeklyDelta.expected.high} g/day
-                    {isPreterm ? ' (corrected)' : ''}
+                    {(weeklyDelta.expectedGPerDay >= 0 ? '+' : '') +
+                      weeklyDelta.expectedGPerDay.toFixed(0)}{' '}
+                    g/day
+                    {weeklyDelta.expectedSource === 'who50'
+                      ? ` (WHO 50th${isPreterm ? ', corrected' : ''})`
+                      : ' (preterm catch-up)'}
                   </span>
                 )}
               </div>

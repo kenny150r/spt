@@ -14,6 +14,7 @@ create table if not exists public.babies (
   birthday               date not null,
   gestational_age_weeks  integer check (gestational_age_weeks is null or gestational_age_weeks between 20 and 45),
   gestational_age_days   integer check (gestational_age_days  is null or gestational_age_days  between 0 and 6),
+  breast_ml_per_min      numeric(5, 2) check (breast_ml_per_min is null or (breast_ml_per_min > 0 and breast_ml_per_min <= 100)),
   created_at             timestamptz not null default now()
 );
 
@@ -21,7 +22,8 @@ create table if not exists public.babies (
 -- columns existed.
 alter table public.babies
   add column if not exists gestational_age_weeks integer,
-  add column if not exists gestational_age_days  integer;
+  add column if not exists gestational_age_days  integer,
+  add column if not exists breast_ml_per_min     numeric(5, 2);
 do $$ begin
   if not exists (
     select 1 from pg_constraint where conname = 'babies_ga_weeks_chk'
@@ -34,6 +36,12 @@ do $$ begin
   ) then
     alter table public.babies add constraint babies_ga_days_chk
       check (gestational_age_days is null or gestational_age_days between 0 and 6);
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname = 'babies_breast_rate_chk'
+  ) then
+    alter table public.babies add constraint babies_breast_rate_chk
+      check (breast_ml_per_min is null or (breast_ml_per_min > 0 and breast_ml_per_min <= 100));
   end if;
 end $$;
 

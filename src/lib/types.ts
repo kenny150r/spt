@@ -7,6 +7,9 @@ export interface Baby {
   birthday: string // ISO date YYYY-MM-DD
   gestational_age_weeks: number | null
   gestational_age_days: number | null
+  // Conversion factor used when computing volume-equivalent breastfeeding totals.
+  // Configurable in Settings; null = use a sensible default (~20 mL/min).
+  breast_ml_per_min: number | null
   created_at: string
 }
 

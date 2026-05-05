@@ -46,7 +46,12 @@ export async function updateBaby(
   patch: Partial<
     Pick<
       Baby,
-      'name' | 'sex' | 'birthday' | 'gestational_age_weeks' | 'gestational_age_days'
+      | 'name'
+      | 'sex'
+      | 'birthday'
+      | 'gestational_age_weeks'
+      | 'gestational_age_days'
+      | 'breast_ml_per_min'
     >
   >,
 ): Promise<Baby> {

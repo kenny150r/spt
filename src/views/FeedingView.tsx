@@ -33,12 +33,15 @@ interface DayBucket {
   breastMin: number
 }
 
-interface HourBucket {
-  hour: number
-  label: string
-  todayFeeds: number
-  avgFeeds: number
+interface HourBinBucket {
+  binStart: number // 0, 3, 6, 9, 12, 15, 18, 21
+  label: string // e.g. "12a", "3a"
+  range: string // e.g. "12a–3a"
+  todayMl: number
+  avgMl: number
 }
+
+const DEFAULT_BREAST_ML_PER_MIN = 20
 
 export function FeedingView({ baby }: { baby: Baby }) {
   const [range, setRange] = useState<Range>('14d')
@@ -94,36 +97,47 @@ export function FeedingView({ baby }: { baby: Baby }) {
   const today = dailyData[dailyData.length - 1]
   const last7 = dailyData.slice(-7)
 
-  // Hour-of-day pattern: today's feed count per hour vs the 7-day average per
-  // hour (excluding today). Useful for spotting cluster-feeding windows.
-  const hourlyData = useMemo<HourBucket[]>(() => {
+  // Hour-of-day volume pattern: today vs the 7-day prior average, in 3-hour
+  // bins. Volume = bottle mL + (breast minutes × baby.breast_ml_per_min).
+  // Useful for spotting cluster-feeding windows.
+  const breastFactor = baby.breast_ml_per_min ?? DEFAULT_BREAST_ML_PER_MIN
+  const hourlyData = useMemo<HourBinBucket[]>(() => {
     const todayKey = format(new Date(), 'yyyy-MM-dd')
-    // Bucket all fetched feeds by date+hour.
-    const byDayHour = new Map<string, number[]>()
+    const byDayBin = new Map<string, number[]>() // 8 bins per day, mL
     for (const f of feeds) {
       const d = new Date(f.fed_at)
       const k = format(d, 'yyyy-MM-dd')
-      if (!byDayHour.has(k)) byDayHour.set(k, new Array(24).fill(0))
-      byDayHour.get(k)![d.getHours()] += 1
+      if (!byDayBin.has(k)) byDayBin.set(k, new Array(8).fill(0))
+      const bin = Math.floor(d.getHours() / 3)
+      const ml =
+        f.type === 'bottle'
+          ? f.amount_ml ?? 0
+          : (f.duration_min ?? 0) * breastFactor
+      byDayBin.get(k)![bin] += ml
     }
-    const todayHours = byDayHour.get(todayKey) ?? new Array(24).fill(0)
-    const otherDays = Array.from(byDayHour.entries())
+    const todayBins = byDayBin.get(todayKey) ?? new Array(8).fill(0)
+    const otherDays = Array.from(byDayBin.entries())
       .filter(([k]) => k !== todayKey)
       .slice(-7) // most recent 7 prior days within the fetched range
-    const avgHours = new Array(24).fill(0)
+    const avgBins = new Array(8).fill(0)
     if (otherDays.length > 0) {
-      for (const [, hrs] of otherDays) {
-        for (let h = 0; h < 24; h++) avgHours[h] += hrs[h]
+      for (const [, bins] of otherDays) {
+        for (let b = 0; b < 8; b++) avgBins[b] += bins[b]
       }
-      for (let h = 0; h < 24; h++) avgHours[h] /= otherDays.length
+      for (let b = 0; b < 8; b++) avgBins[b] /= otherDays.length
     }
-    return Array.from({ length: 24 }, (_, h) => ({
-      hour: h,
-      label: formatHour(h),
-      todayFeeds: todayHours[h],
-      avgFeeds: +avgHours[h].toFixed(2),
-    }))
-  }, [feeds])
+    return Array.from({ length: 8 }, (_, b) => {
+      const start = b * 3
+      const end = (start + 3) % 24
+      return {
+        binStart: start,
+        label: formatHour(start),
+        range: `${formatHour(start)}–${formatHour(end)}`,
+        todayMl: Math.round(todayBins[b]),
+        avgMl: +avgBins[b].toFixed(1),
+      }
+    })
+  }, [feeds, breastFactor])
   const avg = useMemo(() => {
     const totals = last7.reduce(
       (acc, d) => {
@@ -159,60 +173,6 @@ export function FeedingView({ baby }: { baby: Baby }) {
           value={`${Math.round(today?.breastMin ?? 0)} m`}
           sub={`avg ${Math.round(avg.breastMin)} m/d`}
         />
-      </section>
-
-      <section>
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">
-          Hourly pattern · today vs 7-day avg
-        </h2>
-        <div className="card p-4">
-          <div className="h-[200px] -mx-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={hourlyData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-                <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
-                <XAxis
-                  dataKey="hour"
-                  type="number"
-                  domain={[0, 23]}
-                  ticks={[0, 4, 8, 12, 16, 20]}
-                  tickFormatter={(v) => formatHour(Number(v))}
-                  tick={{ fontSize: 11 }}
-                  interval={0}
-                />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                <Tooltip
-                  formatter={(v, n) => [
-                    typeof v === 'number' ? v.toFixed(v < 1 ? 2 : 1) : v,
-                    n,
-                  ]}
-                  labelFormatter={(l) => formatHour(Number(l))}
-                />
-                <Legend
-                  verticalAlign="top"
-                  wrapperStyle={{ fontSize: 11, paddingBottom: 4 }}
-                />
-                <Bar
-                  dataKey="todayFeeds"
-                  name="Today"
-                  fill="#2563eb"
-                  radius={[3, 3, 0, 0]}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="avgFeeds"
-                  name="7-day avg"
-                  stroke="#f59e0b"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-          <p className="text-[11px] text-slate-400 text-center mt-1">
-            Bars: feeds in each hour today. Line: typical count for that hour
-            over the past 7 days.
-          </p>
-        </div>
       </section>
 
       <section>
@@ -295,6 +255,65 @@ export function FeedingView({ baby }: { baby: Baby }) {
             </ChartCard>
           </div>
         )}
+      </section>
+
+      <section>
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">
+          Hourly pattern · today vs 7-day avg
+        </h2>
+        <div className="card p-4">
+          <div className="h-[220px] -mx-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart
+                data={hourlyData}
+                margin={{ top: 8, right: 12, left: 0, bottom: 4 }}
+              >
+                <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 11 }}
+                  interval={0}
+                />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  unit=" mL"
+                  width={56}
+                />
+                <Tooltip
+                  formatter={(v, n) => [
+                    `${Math.round(Number(v))} mL`,
+                    n === 'todayMl' ? 'Today' : '7-day avg',
+                  ]}
+                  labelFormatter={(_l, payload) =>
+                    payload?.[0]?.payload?.range ?? ''
+                  }
+                />
+                <Legend
+                  verticalAlign="top"
+                  wrapperStyle={{ fontSize: 11, paddingBottom: 4 }}
+                />
+                <Bar
+                  dataKey="todayMl"
+                  name="Today"
+                  fill="#2563eb"
+                  radius={[4, 4, 0, 0]}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="avgMl"
+                  name="7-day avg"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: '#f59e0b', strokeWidth: 0 }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="text-[11px] text-slate-400 text-center mt-1">
+            3-hour bins · breast time → mL via {breastFactor} mL/min
+            (Settings).
+          </p>
+        </div>
       </section>
 
       <section>

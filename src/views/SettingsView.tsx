@@ -19,6 +19,9 @@ export function SettingsView({
   const [gaDays, setGaDays] = useState<string>(
     baby.gestational_age_days?.toString() ?? '0',
   )
+  const [breastRate, setBreastRate] = useState<string>(
+    baby.breast_ml_per_min?.toString() ?? '20',
+  )
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<number>(0)
   const [error, setError] = useState<string>('')
@@ -34,6 +37,10 @@ export function SettingsView({
         birthday,
         gestational_age_weeks: gaWeeks === '' ? null : Number(gaWeeks),
         gestational_age_days: gaDays === '' ? 0 : Number(gaDays),
+        breast_ml_per_min:
+          breastRate === '' || Number(breastRate) <= 0
+            ? null
+            : Number(breastRate),
       })
       onUpdated(updated)
       setSavedAt(Date.now())
@@ -132,6 +139,33 @@ export function SettingsView({
             <p className="text-xs text-slate-500 mt-1.5">
               Used to compute corrected age and to align growth-curve overlays
               for preterm babies.
+            </p>
+          </div>
+          <div>
+            <label className="label" htmlFor="breastRate">
+              Breastfeeding rate{' '}
+              <span className="text-slate-400 font-normal">(mL per minute)</span>
+            </label>
+            <div className="relative">
+              <input
+                id="breastRate"
+                type="number"
+                min={1}
+                max={60}
+                step="0.5"
+                inputMode="decimal"
+                value={breastRate}
+                onChange={(e) => setBreastRate(e.target.value)}
+                className="input pr-14"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                mL/min
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1.5">
+              Used on the Feeding page to convert breastfeeding minutes into a
+              volume estimate. Newborns: ~5–10 mL/min. 2–4 mo: ~15–25 mL/min.
+              Adjust to match what your pediatrician or weighed-feeds suggest.
             </p>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
