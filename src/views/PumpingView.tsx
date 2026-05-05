@@ -43,6 +43,7 @@ interface DayBucket {
   // (pumped + nursed) at a glance.
   breastMl: number
   breastMin: number
+  breastSessions: number
 }
 
 export function PumpingView({ baby }: { baby: Baby }) {
@@ -85,6 +86,7 @@ export function PumpingView({ baby }: { baby: Baby }) {
         totalMin: 0,
         breastMl: 0,
         breastMin: 0,
+        breastSessions: 0,
       })
     }
     for (const p of pumps) {
@@ -119,6 +121,7 @@ export function PumpingView({ baby }: { baby: Baby }) {
       const min = f.duration_min ?? 0
       b.breastMin += min
       b.breastMl += min * breastFactor
+      b.breastSessions += 1
     }
     return Array.from(buckets.values())
   }, [pumps, feeds, days, breastFactor])
@@ -244,7 +247,7 @@ export function PumpingView({ baby }: { baby: Baby }) {
               </BarChart>
             </ChartCard>
 
-            <ChartCard title="Sessions per day">
+            <ChartCard title="Sessions per day" subtitle="Grey = breastfeeds">
               <BarChart data={dailyData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
                 <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
@@ -254,7 +257,21 @@ export function PumpingView({ baby }: { baby: Baby }) {
                     payload?.[0]?.payload?.dateISO ?? ''
                   }
                 />
-                <Bar dataKey="sessions" name="Sessions" fill="#14b8a6" radius={[4, 4, 0, 0]} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar
+                  dataKey="sessions"
+                  name="Pumps"
+                  stackId="s"
+                  fill="#14b8a6"
+                  radius={[0, 0, 0, 0]}
+                />
+                <Bar
+                  dataKey="breastSessions"
+                  name="Breastfeeds"
+                  stackId="s"
+                  fill="#cbd5e1"
+                  radius={[4, 4, 0, 0]}
+                />
               </BarChart>
             </ChartCard>
           </div>
