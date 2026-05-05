@@ -50,7 +50,8 @@ export function LogView({ baby }: { baby: Baby }) {
 
   const lastFeed = feeds[0]
   const lastDiaper = diapers[0]
-  const lastWeight = weights[weights.length - 1]
+  // `weights` is reversed in `reload()` so [0] is the most recently MEASURED weight.
+  const lastWeight = weights[0]
 
   const close = () => setSheet({ kind: 'closed' })
   const onSaved = () => {
