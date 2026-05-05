@@ -77,6 +77,29 @@ export function GrowthView({ baby }: { baby: Baby }) {
   const useCorrected = ageMode === 'corrected'
   const xMin = useCorrected ? Math.min(0, -preterm / DAYS_PER_MONTH) : 0
 
+  // For preterm babies in 1-month corrected view, label the x-axis with weeks
+  // of gestational age (e.g. "34w 5d", "40w 0d") instead of months relative to
+  // term — the standard NICU convention and easier to read at this zoom.
+  const showAsGA = useCorrected && isPreterm && zoom === '1mo'
+
+  // When showing GA, force ticks at every full week of GA so labels are clean
+  // (e.g. 34w, 36w, 38w, 40w, 42w, 44w) rather than Recharts' auto-picked
+  // sub-week intervals.
+  const gaTicks = useMemo<number[] | undefined>(() => {
+    if (!showAsGA) return undefined
+    const startGaDays = xMin * DAYS_PER_MONTH + 40 * 7
+    const endGaDays = xMax * DAYS_PER_MONTH + 40 * 7
+    const startWeek = Math.ceil(startGaDays / 7)
+    const endWeek = Math.floor(endGaDays / 7)
+    const stepWeeks = endWeek - startWeek > 6 ? 2 : 1
+    const ticks: number[] = []
+    for (let w = startWeek; w <= endWeek; w += stepWeeks) {
+      const daysFromTerm = w * 7 - 40 * 7
+      ticks.push(daysFromTerm / DAYS_PER_MONTH)
+    }
+    return ticks
+  }, [showAsGA, xMin, xMax])
+
   const ageFor = useCallback(
     (date: Date): number =>
       useCorrected
@@ -374,21 +397,23 @@ export function GrowthView({ baby }: { baby: Baby }) {
 
         <div className="h-[360px] -mx-2">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+            <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 24 }}>
               <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" />
               <XAxis
                 dataKey="ageMonths"
                 type="number"
                 domain={[xMin, xMax]}
-                tickFormatter={(v) => formatXTick(Number(v), xMax)}
+                ticks={gaTicks}
+                tickFormatter={(v) => formatXTick(Number(v), xMax, showAsGA)}
                 tick={{ fontSize: 11 }}
                 label={{
-                  value:
-                    useCorrected && isPreterm
+                  value: showAsGA
+                    ? 'Gestational age'
+                    : useCorrected && isPreterm
                       ? 'Corrected age (months)'
                       : 'Age (months)',
                   position: 'insideBottom',
-                  dy: 12,
+                  offset: -8,
                   fontSize: 11,
                 }}
               />
@@ -411,15 +436,23 @@ export function GrowthView({ baby }: { baby: Baby }) {
                     name as string,
                   ]
                 }}
-                labelFormatter={(v) => formatXLabel(Number(v))}
+                labelFormatter={(v) => formatXLabel(Number(v), showAsGA)}
               />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Legend
+                verticalAlign="top"
+                wrapperStyle={{ fontSize: 11, paddingBottom: 6 }}
+              />
               {useCorrected && isPreterm && xMin < 0 && (
                 <ReferenceLine
                   x={0}
                   stroke="#f59e0b"
                   strokeDasharray="3 3"
-                  label={{ value: 'Term', position: 'top', fontSize: 10, fill: '#b45309' }}
+                  label={{
+                    value: showAsGA ? '40w (term)' : 'Term',
+                    position: 'top',
+                    fontSize: 10,
+                    fill: '#b45309',
+                  }}
                 />
               )}
               {/* Lower SD bands first so percentile lines render on top. */}
@@ -506,7 +539,19 @@ export function GrowthView({ baby }: { baby: Baby }) {
   )
 }
 
-function formatXTick(v: number, xMax: number): string {
+function correctedMonthsToGA(v: number): { weeks: number; days: number } {
+  const totalGaDays = 40 * 7 + v * DAYS_PER_MONTH
+  const weeks = Math.floor(totalGaDays / 7)
+  const days = Math.round(totalGaDays - weeks * 7)
+  if (days === 7) return { weeks: weeks + 1, days: 0 }
+  return { weeks, days }
+}
+
+function formatXTick(v: number, xMax: number, showAsGA: boolean): string {
+  if (showAsGA) {
+    const { weeks, days } = correctedMonthsToGA(v)
+    return days === 0 ? `${weeks}w` : `${weeks}w${days}d`
+  }
   if (xMax <= 1) {
     const weeks = v * (DAYS_PER_MONTH / 7)
     return `${weeks.toFixed(0)}w`
@@ -514,7 +559,11 @@ function formatXTick(v: number, xMax: number): string {
   return v.toFixed(0)
 }
 
-function formatXLabel(v: number): string {
+function formatXLabel(v: number, showAsGA: boolean): string {
+  if (showAsGA) {
+    const { weeks, days } = correctedMonthsToGA(v)
+    return `${weeks}w ${days}d GA`
+  }
   if (Math.abs(v) < 1) {
     const days = Math.round(v * DAYS_PER_MONTH)
     return `${days} d`

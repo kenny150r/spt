@@ -97,7 +97,7 @@ export function SignIn() {
             <BabyIcon className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold leading-tight">Baby Tracker</h1>
+            <h1 className="text-xl font-semibold leading-tight">Sam's Baby Tracker</h1>
             <p className="text-sm text-slate-500">Sign in to continue</p>
           </div>
         </div>
