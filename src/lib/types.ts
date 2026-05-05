@@ -50,7 +50,32 @@ export interface DiaperEntry {
   created_at: string
 }
 
+export type PumpSide = 'left' | 'right' | 'both'
+
+export interface PumpEntry {
+  id: string
+  baby_id: string
+  pumped_at: string
+  side: PumpSide
+  amount_ml: number | null
+  duration_min: number | null
+  notes: string | null
+  created_at: string
+}
+
+export interface SupplementEntry {
+  id: string
+  baby_id: string
+  given_at: string
+  multivitamin: boolean
+  iron: boolean
+  notes: string | null
+  created_at: string
+}
+
 export type AnyEntry =
   | ({ kind: 'weight' } & WeightEntry)
   | ({ kind: 'feed' } & FeedEntry)
   | ({ kind: 'diaper' } & DiaperEntry)
+  | ({ kind: 'pump' } & PumpEntry)
+  | ({ kind: 'supplement' } & SupplementEntry)

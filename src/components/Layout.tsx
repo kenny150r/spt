@@ -1,10 +1,18 @@
-import { Activity, Droplet, LineChart, LogOut, Milk, Settings as SettingsIcon } from 'lucide-react'
+import {
+  Activity,
+  Droplet,
+  LineChart,
+  LogOut,
+  Milk,
+  Settings as SettingsIcon,
+  Wind,
+} from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Baby } from '../lib/types'
 import { ageString } from '../lib/format'
 import { supabase } from '../lib/supabase'
 
-export type View = 'log' | 'feeding' | 'diapers' | 'growth' | 'settings'
+export type View = 'log' | 'feeding' | 'pumping' | 'diapers' | 'growth' | 'settings'
 
 interface Props {
   baby: Baby
@@ -17,8 +25,8 @@ export function Layout({ baby, view, onChangeView, children }: Props) {
   return (
     <div className="min-h-dvh flex flex-col">
       <header className="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-slate-200">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="min-w-0">
+        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-2">
+          <div className="min-w-0 flex-1">
             <h1 className="text-lg font-semibold leading-tight truncate">{baby.name}</h1>
             <p className="text-xs text-slate-500 truncate">
               {ageString(
@@ -29,6 +37,15 @@ export function Layout({ baby, view, onChangeView, children }: Props) {
               )}
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => onChangeView('settings')}
+            className={`btn-ghost ${view === 'settings' ? 'text-brand-600 bg-brand-50' : ''}`}
+            aria-label="Settings"
+            title="Settings"
+          >
+            <SettingsIcon className="h-5 w-5" />
+          </button>
           <button
             type="button"
             onClick={() => supabase.auth.signOut()}
@@ -58,6 +75,12 @@ export function Layout({ baby, view, onChangeView, children }: Props) {
             icon={<Milk className="h-5 w-5" />}
           />
           <NavButton
+            label="Pump"
+            active={view === 'pumping'}
+            onClick={() => onChangeView('pumping')}
+            icon={<Wind className="h-5 w-5" />}
+          />
+          <NavButton
             label="Diapers"
             active={view === 'diapers'}
             onClick={() => onChangeView('diapers')}
@@ -68,12 +91,6 @@ export function Layout({ baby, view, onChangeView, children }: Props) {
             active={view === 'growth'}
             onClick={() => onChangeView('growth')}
             icon={<LineChart className="h-5 w-5" />}
-          />
-          <NavButton
-            label="Settings"
-            active={view === 'settings'}
-            onClick={() => onChangeView('settings')}
-            icon={<SettingsIcon className="h-5 w-5" />}
           />
         </div>
       </nav>

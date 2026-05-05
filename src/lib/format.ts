@@ -90,19 +90,27 @@ export function ageString(
 }
 
 export function timeSince(iso: string): string {
+  const s = timeSinceShort(iso)
+  return s === 'now' ? 'just now' : `${s} ago`
+}
+
+// Same as timeSince() but without the trailing "ago" — useful in tight UI
+// (summary cards) where the surrounding label already implies "ago".
+// "now", "42m", "3h 17m", "2d 5h"
+export function timeSinceShort(iso: string): string {
   const then = new Date(iso)
   const now = new Date()
   const mins = differenceInMinutes(now, then)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 1) return 'now'
+  if (mins < 60) return `${mins}m`
   const hours = differenceInHours(now, then)
   if (hours < 24) {
     const remMins = mins - hours * 60
-    return remMins > 0 ? `${hours}h ${remMins}m ago` : `${hours}h ago`
+    return remMins > 0 ? `${hours}h ${remMins}m` : `${hours}h`
   }
   const days = differenceInDays(now, then)
   const remHours = hours - days * 24
-  return remHours > 0 ? `${days}d ${remHours}h ago` : `${days}d ago`
+  return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`
 }
 
 // Returns a value usable as the value of a <input type="datetime-local">.

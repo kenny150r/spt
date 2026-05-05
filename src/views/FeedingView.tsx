@@ -15,8 +15,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { listFeedsSince } from '../lib/api'
-import type { Baby, FeedEntry, FeedType } from '../lib/types'
+import { listFeedsSince, listSupplementsSince } from '../lib/api'
+import type { Baby, FeedEntry, FeedType, SupplementEntry } from '../lib/types'
 
 type Range = '7d' | '14d' | '30d'
 
@@ -50,6 +50,7 @@ const DEFAULT_BREAST_ML_PER_MIN = 20
 export function FeedingView({ baby }: { baby: Baby }) {
   const [range, setRange] = useState<Range>('14d')
   const [feeds, setFeeds] = useState<FeedEntry[]>([])
+  const [supplements, setSupplements] = useState<SupplementEntry[]>([])
   const [loading, setLoading] = useState(true)
 
   const days = RANGE_OPTIONS.find((r) => r.id === range)!.days
@@ -57,8 +58,12 @@ export function FeedingView({ baby }: { baby: Baby }) {
   const reload = useCallback(async () => {
     setLoading(true)
     const since = startOfDay(subDays(new Date(), days - 1)).toISOString()
-    const data = await listFeedsSince(baby.id, since)
-    setFeeds(data)
+    const [f, s] = await Promise.all([
+      listFeedsSince(baby.id, since),
+      listSupplementsSince(baby.id, since),
+    ])
+    setFeeds(f)
+    setSupplements(s)
     setLoading(false)
   }, [baby.id, days])
 
@@ -95,11 +100,20 @@ export function FeedingView({ baby }: { baby: Baby }) {
         b.breastCount += 1
         b.breastMin += f.duration_min ?? 0
       }
+      // Legacy: supplements that were marked inline on a feed entry. Newer
+      // entries live in the dedicated supplements table (see below).
       if (f.multivitamin) b.multivitamin = true
       if (f.iron) b.iron = true
     }
+    for (const s of supplements) {
+      const dateISO = format(new Date(s.given_at), 'yyyy-MM-dd')
+      const b = buckets.get(dateISO)
+      if (!b) continue
+      if (s.multivitamin) b.multivitamin = true
+      if (s.iron) b.iron = true
+    }
     return Array.from(buckets.values())
-  }, [feeds, days])
+  }, [feeds, supplements, days])
 
   // Today is the last bucket.
   const today = dailyData[dailyData.length - 1]

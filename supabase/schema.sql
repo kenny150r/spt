@@ -89,15 +89,45 @@ create table if not exists public.diapers (
 create index if not exists diapers_baby_occurred_at_idx
   on public.diapers (baby_id, occurred_at desc);
 
+create table if not exists public.pumps (
+  id            uuid primary key default gen_random_uuid(),
+  baby_id       uuid not null references public.babies(id) on delete cascade,
+  pumped_at     timestamptz not null default now(),
+  side          text not null check (side in ('left', 'right', 'both')),
+  amount_ml     numeric(6, 1) check (amount_ml is null or amount_ml >= 0),
+  duration_min  numeric(5, 1) check (duration_min is null or duration_min >= 0),
+  notes         text,
+  created_at    timestamptz not null default now()
+);
+create index if not exists pumps_baby_pumped_at_idx
+  on public.pumps (baby_id, pumped_at desc);
+
+create table if not exists public.supplements (
+  id            uuid primary key default gen_random_uuid(),
+  baby_id       uuid not null references public.babies(id) on delete cascade,
+  given_at      timestamptz not null default now(),
+  multivitamin  boolean not null default false,
+  iron          boolean not null default false,
+  notes         text,
+  created_at    timestamptz not null default now(),
+  -- An entry must mark at least one supplement.
+  constraint supplements_at_least_one_chk
+    check (multivitamin or iron)
+);
+create index if not exists supplements_baby_given_at_idx
+  on public.supplements (baby_id, given_at desc);
+
 ------------------------------------------------------------
 -- Row Level Security: any signed-in user can read/write.
 -- Restrict who can sign in via Supabase Dashboard > Authentication
 -- (turn off public sign-ups, then invite users by email).
 ------------------------------------------------------------
-alter table public.babies  enable row level security;
-alter table public.weights enable row level security;
-alter table public.feeds   enable row level security;
-alter table public.diapers enable row level security;
+alter table public.babies      enable row level security;
+alter table public.weights     enable row level security;
+alter table public.feeds       enable row level security;
+alter table public.diapers     enable row level security;
+alter table public.pumps       enable row level security;
+alter table public.supplements enable row level security;
 
 -- Drop existing policies first so the script is idempotent.
 drop policy if exists "auth read"   on public.babies;
@@ -120,12 +150,22 @@ drop policy if exists "auth write"  on public.diapers;
 drop policy if exists "auth update" on public.diapers;
 drop policy if exists "auth delete" on public.diapers;
 
+drop policy if exists "auth read"   on public.pumps;
+drop policy if exists "auth write"  on public.pumps;
+drop policy if exists "auth update" on public.pumps;
+drop policy if exists "auth delete" on public.pumps;
+
+drop policy if exists "auth read"   on public.supplements;
+drop policy if exists "auth write"  on public.supplements;
+drop policy if exists "auth update" on public.supplements;
+drop policy if exists "auth delete" on public.supplements;
+
 -- Create policies for each table: any authenticated user has full access.
 do $$
 declare
   t text;
 begin
-  foreach t in array array['babies', 'weights', 'feeds', 'diapers']
+  foreach t in array array['babies', 'weights', 'feeds', 'diapers', 'pumps', 'supplements']
   loop
     execute format('create policy "auth read"   on public.%I for select to authenticated using (true);', t);
     execute format('create policy "auth write"  on public.%I for insert to authenticated with check (true);', t);

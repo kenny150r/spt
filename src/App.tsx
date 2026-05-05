@@ -9,6 +9,7 @@ import { Layout } from './components/Layout'
 import type { View } from './components/Layout'
 import { LogView } from './views/LogView'
 import { FeedingView } from './views/FeedingView'
+import { PumpingView } from './views/PumpingView'
 import { DiapersView } from './views/DiapersView'
 import { GrowthView } from './views/GrowthView'
 import { SettingsView } from './views/SettingsView'
@@ -64,6 +65,7 @@ function App() {
     <Layout baby={baby} view={view} onChangeView={setView}>
       {view === 'log' && <LogView baby={baby} />}
       {view === 'feeding' && <FeedingView baby={baby} />}
+      {view === 'pumping' && <PumpingView baby={baby} />}
       {view === 'diapers' && <DiapersView baby={baby} />}
       {view === 'growth' && <GrowthView baby={baby} />}
       {view === 'settings' && <SettingsView baby={baby} onUpdated={setBaby} />}

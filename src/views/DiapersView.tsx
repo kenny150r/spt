@@ -16,7 +16,7 @@ import { Sheet } from '../components/Sheet'
 import { AddDiaperForm } from '../components/forms/AddDiaperForm'
 import { listDiapersSince } from '../lib/api'
 import type { Baby, DiaperEntry, DiaperType } from '../lib/types'
-import { timeSince } from '../lib/format'
+import { timeSinceShort } from '../lib/format'
 
 type Range = '7d' | '14d' | '30d'
 
@@ -152,14 +152,14 @@ export function DiapersView({ baby }: { baby: Baby }) {
       <section className="grid grid-cols-2 gap-3">
         <SummaryCard
           label="Last wet"
-          value={lastWet ? timeSince(lastWet.occurred_at) : '—'}
+          value={lastWet ? timeSinceShort(lastWet.occurred_at) : '—'}
           tone={
             lastWet && hoursSince(lastWet.occurred_at) > 6 ? 'amber' : 'default'
           }
         />
         <SummaryCard
           label="Last dirty"
-          value={lastDirty ? timeSince(lastDirty.occurred_at) : '—'}
+          value={lastDirty ? timeSinceShort(lastDirty.occurred_at) : '—'}
         />
         <SummaryCard
           label="Today wet"

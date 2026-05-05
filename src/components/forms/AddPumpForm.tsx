@@ -1,0 +1,178 @@
+import { useState } from 'react'
+import { addPump } from '../../lib/api'
+import { toDatetimeLocal } from '../../lib/format'
+import type { PumpSide } from '../../lib/types'
+
+export function AddPumpForm({
+  babyId,
+  onSaved,
+  onCancel,
+}: {
+  babyId: string
+  onSaved: () => void
+  onCancel: () => void
+}) {
+  const [pumpedAt, setPumpedAt] = useState(toDatetimeLocal(new Date()))
+  const [side, setSide] = useState<PumpSide>('both')
+  const [leftMl, setLeftMl] = useState('')
+  const [rightMl, setRightMl] = useState('')
+  const [singleMl, setSingleMl] = useState('')
+  const [durationMin, setDurationMin] = useState('')
+  const [notes, setNotes] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  function totalMl(): number | null {
+    if (side === 'both') {
+      const l = leftMl ? Number(leftMl) : 0
+      const r = rightMl ? Number(rightMl) : 0
+      const t = l + r
+      return t > 0 ? t : null
+    }
+    return singleMl ? Number(singleMl) : null
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitting(true)
+    setError('')
+    try {
+      await addPump({
+        baby_id: babyId,
+        pumped_at: new Date(pumpedAt).toISOString(),
+        side,
+        amount_ml: totalMl(),
+        duration_min: durationMin ? Number(durationMin) : null,
+        notes:
+          side === 'both' && (leftMl || rightMl)
+            ? `${notes.trim() ? notes.trim() + ' · ' : ''}L: ${leftMl || 0} mL · R: ${rightMl || 0} mL`
+            : notes.trim() || null,
+      })
+      onSaved()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save pump')
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div>
+        <label className="label" htmlFor="pumped_at">Time</label>
+        <input
+          id="pumped_at"
+          type="datetime-local"
+          required
+          value={pumpedAt}
+          onChange={(e) => setPumpedAt(e.target.value)}
+          className="input"
+        />
+      </div>
+
+      <div>
+        <label className="label">Side</label>
+        <div className="grid grid-cols-3 gap-2">
+          {(['left', 'right', 'both'] as PumpSide[]).map((s) => (
+            <button
+              type="button"
+              key={s}
+              onClick={() => setSide(s)}
+              className={`btn ${
+                side === s
+                  ? 'bg-brand-600 text-white'
+                  : 'bg-white border border-slate-200 text-slate-700'
+              } capitalize`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {side === 'both' ? (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="label" htmlFor="left_ml">Left (mL)</label>
+            <input
+              id="left_ml"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.5"
+              value={leftMl}
+              onChange={(e) => setLeftMl(e.target.value)}
+              className="input"
+              placeholder="e.g. 40"
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="right_ml">Right (mL)</label>
+            <input
+              id="right_ml"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.5"
+              value={rightMl}
+              onChange={(e) => setRightMl(e.target.value)}
+              className="input"
+              placeholder="e.g. 50"
+            />
+          </div>
+        </div>
+      ) : (
+        <div>
+          <label className="label" htmlFor="single_ml">Amount (mL)</label>
+          <input
+            id="single_ml"
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.5"
+            value={singleMl}
+            onChange={(e) => setSingleMl(e.target.value)}
+            className="input"
+            placeholder="e.g. 80"
+          />
+        </div>
+      )}
+
+      <div>
+        <label className="label" htmlFor="duration_min">Duration (min)</label>
+        <input
+          id="duration_min"
+          type="number"
+          inputMode="decimal"
+          min="0"
+          step="0.5"
+          value={durationMin}
+          onChange={(e) => setDurationMin(e.target.value)}
+          className="input"
+          placeholder="e.g. 20"
+        />
+      </div>
+
+      <div>
+        <label className="label" htmlFor="pump_notes">Notes</label>
+        <input
+          id="pump_notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          className="input"
+          placeholder="Optional"
+        />
+      </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <div className="flex gap-2 pt-1">
+        <button type="button" onClick={onCancel} className="btn-secondary flex-1">
+          Cancel
+        </button>
+        <button type="submit" disabled={submitting} className="btn-primary flex-1">
+          {submitting ? 'Saving…' : 'Save pump'}
+        </button>
+      </div>
+    </form>
+  )
+}

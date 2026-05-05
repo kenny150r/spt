@@ -6,7 +6,10 @@ import type {
   FeedEntry,
   FeedSide,
   FeedType,
+  PumpEntry,
+  PumpSide,
   Sex,
+  SupplementEntry,
   WeightEntry,
 } from './types'
 
@@ -199,9 +202,113 @@ export async function addDiaper(input: {
   return data as DiaperEntry
 }
 
+// ---- Pumps ----
+export async function listPumps(
+  babyId: string,
+  limit = 50,
+): Promise<PumpEntry[]> {
+  const { data, error } = await supabase
+    .from('pumps')
+    .select('*')
+    .eq('baby_id', babyId)
+    .order('pumped_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data ?? []
+}
+
+export async function listPumpsSince(
+  babyId: string,
+  sinceISO: string,
+): Promise<PumpEntry[]> {
+  const { data, error } = await supabase
+    .from('pumps')
+    .select('*')
+    .eq('baby_id', babyId)
+    .gte('pumped_at', sinceISO)
+    .order('pumped_at', { ascending: true })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function addPump(input: {
+  baby_id: string
+  pumped_at: string
+  side: PumpSide
+  amount_ml?: number | null
+  duration_min?: number | null
+  notes?: string | null
+}): Promise<PumpEntry> {
+  const { data, error } = await supabase
+    .from('pumps')
+    .insert({
+      baby_id: input.baby_id,
+      pumped_at: input.pumped_at,
+      side: input.side,
+      amount_ml: input.amount_ml ?? null,
+      duration_min: input.duration_min ?? null,
+      notes: input.notes ?? null,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return data as PumpEntry
+}
+
+// ---- Supplements ----
+export async function listSupplements(
+  babyId: string,
+  limit = 50,
+): Promise<SupplementEntry[]> {
+  const { data, error } = await supabase
+    .from('supplements')
+    .select('*')
+    .eq('baby_id', babyId)
+    .order('given_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data ?? []
+}
+
+export async function listSupplementsSince(
+  babyId: string,
+  sinceISO: string,
+): Promise<SupplementEntry[]> {
+  const { data, error } = await supabase
+    .from('supplements')
+    .select('*')
+    .eq('baby_id', babyId)
+    .gte('given_at', sinceISO)
+    .order('given_at', { ascending: true })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function addSupplement(input: {
+  baby_id: string
+  given_at: string
+  multivitamin: boolean
+  iron: boolean
+  notes?: string | null
+}): Promise<SupplementEntry> {
+  const { data, error } = await supabase
+    .from('supplements')
+    .insert({
+      baby_id: input.baby_id,
+      given_at: input.given_at,
+      multivitamin: input.multivitamin,
+      iron: input.iron,
+      notes: input.notes ?? null,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return data as SupplementEntry
+}
+
 // ---- Generic delete ----
 export async function deleteEntry(
-  table: 'weights' | 'feeds' | 'diapers',
+  table: 'weights' | 'feeds' | 'diapers' | 'pumps' | 'supplements',
   id: string,
 ): Promise<void> {
   const { error } = await supabase.from(table).delete().eq('id', id)

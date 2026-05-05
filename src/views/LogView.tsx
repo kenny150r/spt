@@ -1,36 +1,71 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Baby as BabyIcon, Droplet, Milk, Scale, Trash2, Utensils } from 'lucide-react'
-import { format } from 'date-fns'
+import {
+  Baby as BabyIcon,
+  Droplet,
+  Milk,
+  Pill,
+  Scale,
+  Trash2,
+  Utensils,
+  Wind,
+} from 'lucide-react'
+import { format, startOfDay } from 'date-fns'
 import { Sheet } from '../components/Sheet'
 import { AddFeedForm } from '../components/forms/AddFeedForm'
 import { AddDiaperForm } from '../components/forms/AddDiaperForm'
 import { AddWeightForm } from '../components/forms/AddWeightForm'
-import { deleteEntry, listDiapers, listFeeds, listWeights } from '../lib/api'
-import type { AnyEntry, Baby, DiaperEntry, FeedEntry, WeightEntry, DiaperType } from '../lib/types'
-import { formatDateTime, formatWeight, timeSince } from '../lib/format'
+import { AddPumpForm } from '../components/forms/AddPumpForm'
+import { AddSupplementForm } from '../components/forms/AddSupplementForm'
+import {
+  deleteEntry,
+  listDiapers,
+  listFeeds,
+  listPumps,
+  listSupplementsSince,
+  listWeights,
+} from '../lib/api'
+import type {
+  AnyEntry,
+  Baby,
+  DiaperEntry,
+  FeedEntry,
+  PumpEntry,
+  SupplementEntry,
+  WeightEntry,
+} from '../lib/types'
+import { formatDateTime, formatWeight, timeSince, timeSinceShort } from '../lib/format'
 
 type SheetState =
   | { kind: 'closed' }
   | { kind: 'feed' }
-  | { kind: 'diaper'; type: DiaperType }
+  | { kind: 'diaper' }
   | { kind: 'weight' }
+  | { kind: 'pump' }
+  | { kind: 'supplement' }
 
 export function LogView({ baby }: { baby: Baby }) {
   const [sheet, setSheet] = useState<SheetState>({ kind: 'closed' })
   const [feeds, setFeeds] = useState<FeedEntry[]>([])
   const [diapers, setDiapers] = useState<DiaperEntry[]>([])
   const [weights, setWeights] = useState<WeightEntry[]>([])
+  const [pumps, setPumps] = useState<PumpEntry[]>([])
+  const [supplements, setSupplements] = useState<SupplementEntry[]>([])
   const [loading, setLoading] = useState(true)
 
   const reload = useCallback(async () => {
-    const [f, d, w] = await Promise.all([
+    const since14d = startOfDay(new Date(Date.now() - 14 * 24 * 3600 * 1000)).toISOString()
+    const [f, d, w, p, s] = await Promise.all([
       listFeeds(baby.id, 25),
       listDiapers(baby.id, 25),
       listWeights(baby.id),
+      listPumps(baby.id, 25),
+      listSupplementsSince(baby.id, since14d),
     ])
     setFeeds(f)
     setDiapers(d)
     setWeights(w.slice().reverse())
+    setPumps(p)
+    setSupplements(s.slice().reverse())
     setLoading(false)
   }, [baby.id])
 
@@ -44,29 +79,38 @@ export function LogView({ baby }: { baby: Baby }) {
       ...feeds.map((e) => ({ kind: 'feed' as const, ...e })),
       ...diapers.map((e) => ({ kind: 'diaper' as const, ...e })),
       ...weights.map((e) => ({ kind: 'weight' as const, ...e })),
+      ...pumps.map((e) => ({ kind: 'pump' as const, ...e })),
+      ...supplements.map((e) => ({ kind: 'supplement' as const, ...e })),
     ]
     items.sort((a, b) => entryTime(b).localeCompare(entryTime(a)))
     return items.slice(0, 30)
-  }, [feeds, diapers, weights])
+  }, [feeds, diapers, weights, pumps, supplements])
 
   const lastFeed = feeds[0]
   const lastDiaper = diapers[0]
   // `weights` is reversed in `reload()` so [0] is the most recently MEASURED weight.
   const lastWeight = weights[0]
 
-  // Supplements are once-daily. Check today's feeds for the iron / multivitamin
-  // flags so we can nudge if either is still pending.
+  // Today's once-daily supplement status. Reads primarily from the dedicated
+  // supplements table, but also folds in feeds.iron / feeds.multivitamin so
+  // legacy entries (logged before the dedicated quick-log existed) still
+  // count.
   const supplementsToday = useMemo(() => {
     const todayKey = format(new Date(), 'yyyy-MM-dd')
     let multivitamin = false
     let iron = false
+    for (const s of supplements) {
+      if (format(new Date(s.given_at), 'yyyy-MM-dd') !== todayKey) continue
+      if (s.multivitamin) multivitamin = true
+      if (s.iron) iron = true
+    }
     for (const f of feeds) {
       if (format(new Date(f.fed_at), 'yyyy-MM-dd') !== todayKey) continue
       if (f.multivitamin) multivitamin = true
       if (f.iron) iron = true
     }
     return { multivitamin, iron }
-  }, [feeds])
+  }, [supplements, feeds])
 
   const close = () => setSheet({ kind: 'closed' })
   const onSaved = () => {
@@ -76,7 +120,16 @@ export function LogView({ baby }: { baby: Baby }) {
 
   async function onDelete(item: AnyEntry) {
     if (!confirm('Delete this entry?')) return
-    const table = item.kind === 'feed' ? 'feeds' : item.kind === 'diaper' ? 'diapers' : 'weights'
+    const table =
+      item.kind === 'feed'
+        ? 'feeds'
+        : item.kind === 'diaper'
+          ? 'diapers'
+          : item.kind === 'weight'
+            ? 'weights'
+            : item.kind === 'pump'
+              ? 'pumps'
+              : 'supplements'
     await deleteEntry(table, item.id)
     reload()
   }
@@ -86,18 +139,12 @@ export function LogView({ baby }: { baby: Baby }) {
       <section className="grid grid-cols-3 gap-3">
         <SummaryCard
           label="Last feed"
-          value={lastFeed ? timeSince(lastFeed.fed_at) : '—'}
+          value={lastFeed ? timeSinceShort(lastFeed.fed_at) : '—'}
           icon={<Utensils className="h-4 w-4" />}
-          extras={
-            <div className="mt-1.5 flex gap-1">
-              <SupplementPill label="Vit" given={supplementsToday.multivitamin} />
-              <SupplementPill label="Fe" given={supplementsToday.iron} />
-            </div>
-          }
         />
         <SummaryCard
           label="Last diaper"
-          value={lastDiaper ? timeSince(lastDiaper.occurred_at) : '—'}
+          value={lastDiaper ? timeSinceShort(lastDiaper.occurred_at) : '—'}
           icon={<Droplet className="h-4 w-4" />}
         />
         <SummaryCard
@@ -120,25 +167,29 @@ export function LogView({ baby }: { baby: Baby }) {
             onClick={() => setSheet({ kind: 'feed' })}
           />
           <BigButton
+            label="Diaper"
+            sub="pee, poop, or both"
+            color="bg-sky-50 text-sky-900 border-sky-100"
+            icon={<Droplet className="h-5 w-5" />}
+            onClick={() => setSheet({ kind: 'diaper' })}
+          />
+          <BigButton
+            label="Pump"
+            sub="left / right output"
+            color="bg-teal-50 text-teal-900 border-teal-100"
+            icon={<Wind className="h-5 w-5" />}
+            onClick={() => setSheet({ kind: 'pump' })}
+          />
+          <BigButton
             label="Weight"
             sub="growth check"
             color="bg-violet-50 text-violet-900 border-violet-100"
             icon={<Scale className="h-5 w-5" />}
             onClick={() => setSheet({ kind: 'weight' })}
           />
-          <BigButton
-            label="Pee"
-            sub="wet diaper"
-            color="bg-sky-50 text-sky-900 border-sky-100"
-            icon={<Droplet className="h-5 w-5" />}
-            onClick={() => setSheet({ kind: 'diaper', type: 'pee' })}
-          />
-          <BigButton
-            label="Poop"
-            sub="dirty diaper"
-            color="bg-emerald-50 text-emerald-900 border-emerald-100"
-            icon={<BabyIcon className="h-5 w-5" />}
-            onClick={() => setSheet({ kind: 'diaper', type: 'poop' })}
+          <SupplementsButton
+            given={supplementsToday}
+            onClick={() => setSheet({ kind: 'supplement' })}
           />
         </div>
       </section>
@@ -166,67 +217,58 @@ export function LogView({ baby }: { baby: Baby }) {
         <AddFeedForm babyId={baby.id} onSaved={onSaved} onCancel={close} />
       </Sheet>
       <Sheet open={sheet.kind === 'diaper'} onClose={close} title="Log a diaper">
-        {sheet.kind === 'diaper' && (
-          <AddDiaperForm
-            babyId={baby.id}
-            initialType={sheet.type}
-            onSaved={onSaved}
-            onCancel={close}
-          />
-        )}
+        <AddDiaperForm babyId={baby.id} initialType="pee" onSaved={onSaved} onCancel={close} />
       </Sheet>
       <Sheet open={sheet.kind === 'weight'} onClose={close} title="Log a weight">
         <AddWeightForm babyId={baby.id} onSaved={onSaved} onCancel={close} />
+      </Sheet>
+      <Sheet open={sheet.kind === 'pump'} onClose={close} title="Log a pump">
+        <AddPumpForm babyId={baby.id} onSaved={onSaved} onCancel={close} />
+      </Sheet>
+      <Sheet open={sheet.kind === 'supplement'} onClose={close} title="Mark supplements given">
+        <AddSupplementForm
+          babyId={baby.id}
+          givenToday={supplementsToday}
+          onSaved={onSaved}
+          onCancel={close}
+        />
       </Sheet>
     </div>
   )
 }
 
 function entryTime(item: AnyEntry): string {
-  if (item.kind === 'feed') return item.fed_at
-  if (item.kind === 'diaper') return item.occurred_at
-  return item.measured_at
+  switch (item.kind) {
+    case 'feed':
+      return item.fed_at
+    case 'diaper':
+      return item.occurred_at
+    case 'weight':
+      return item.measured_at
+    case 'pump':
+      return item.pumped_at
+    case 'supplement':
+      return item.given_at
+  }
 }
 
 function SummaryCard({
   label,
   value,
   icon,
-  extras,
 }: {
   label: string
   value: string
   icon: React.ReactNode
-  extras?: React.ReactNode
 }) {
   return (
     <div className="card p-3">
       <div className="text-xs text-slate-500 flex items-center gap-1.5">
         {icon}
-        {label}
+        <span className="truncate">{label}</span>
       </div>
       <div className="text-base font-semibold mt-1 truncate">{value}</div>
-      {extras}
     </div>
-  )
-}
-
-// Tiny pill on the Last feed card. Green when that supplement was given at
-// least once today, slate when it's still pending. Both supplements are
-// once-daily — see comments in `supplementsToday` above.
-function SupplementPill({ label, given }: { label: string; given: boolean }) {
-  return (
-    <span
-      className={`inline-flex items-center justify-center rounded-md text-[10px] font-semibold leading-none px-1.5 py-1 min-w-[26px] ${
-        given
-          ? 'bg-emerald-100 text-emerald-800'
-          : 'bg-slate-100 text-slate-500'
-      }`}
-      title={given ? `${label}: given today` : `${label}: still needed today`}
-    >
-      {given ? '✓ ' : ''}
-      {label}
-    </span>
   )
 }
 
@@ -260,6 +302,66 @@ function BigButton({
   )
 }
 
+// Special-case Quick-Log button for daily supplements: shows the two
+// once-daily supplements with their current status (✓ given today / pending),
+// each on its own clearly-labeled line so the abbreviations are unambiguous.
+function SupplementsButton({
+  given,
+  onClick,
+}: {
+  given: { multivitamin: boolean; iron: boolean }
+  onClick: () => void
+}) {
+  const allDone = given.multivitamin && given.iron
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`p-4 rounded-2xl border text-left flex items-start gap-3 active:scale-[0.99] transition-transform col-span-2 ${
+        allDone
+          ? 'bg-emerald-50 text-emerald-900 border-emerald-100'
+          : 'bg-rose-50 text-rose-900 border-rose-100'
+      }`}
+      aria-label="Log supplements"
+    >
+      <div className="h-10 w-10 rounded-xl bg-white/70 grid place-items-center">
+        <Pill className="h-5 w-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <div className="font-semibold leading-tight">Supplements</div>
+          <div className="text-[11px] opacity-75">
+            {allDone ? 'all done today' : 'tap to log'}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5 mt-1.5 text-xs">
+          <SupplementLine name="Multivitamin" given={given.multivitamin} />
+          <SupplementLine name="Iron" given={given.iron} />
+        </div>
+      </div>
+    </button>
+  )
+}
+
+function SupplementLine({ name, given }: { name: string; given: boolean }) {
+  return (
+    <div
+      className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${
+        given ? 'bg-emerald-100 text-emerald-800' : 'bg-white/70 text-slate-600'
+      }`}
+    >
+      <span
+        className={`h-3.5 w-3.5 rounded-full grid place-items-center text-[10px] leading-none font-bold ${
+          given ? 'bg-emerald-600 text-white' : 'border border-slate-300 bg-white text-slate-400'
+        }`}
+      >
+        {given ? '✓' : ''}
+      </span>
+      <span className="font-medium truncate">{name}</span>
+    </div>
+  )
+}
+
 function ActivityRow({ item, onDelete }: { item: AnyEntry; onDelete: () => void }) {
   let icon: React.ReactNode
   let title: string
@@ -287,6 +389,19 @@ function ActivityRow({ item, onDelete }: { item: AnyEntry; onDelete: () => void 
     title = item.type === 'both' ? 'Pee + poop' : item.type[0].toUpperCase() + item.type.slice(1)
     subtitle = item.notes ?? ''
     time = item.occurred_at
+  } else if (item.kind === 'pump') {
+    icon = <Wind className="h-4 w-4 text-teal-700" />
+    const ml = item.amount_ml ? ` · ${item.amount_ml} ml` : ''
+    const dur = item.duration_min ? ` · ${item.duration_min} min` : ''
+    title = `Pump (${item.side})${ml}${dur}`
+    subtitle = item.notes ?? ''
+    time = item.pumped_at
+  } else if (item.kind === 'supplement') {
+    icon = <Pill className="h-4 w-4 text-rose-700" />
+    const parts = [item.multivitamin && 'Multivitamin', item.iron && 'Iron'].filter(Boolean) as string[]
+    title = `Supplement · ${parts.join(' + ')}`
+    subtitle = item.notes ?? ''
+    time = item.given_at
   } else {
     icon = <Scale className="h-4 w-4 text-violet-700" />
     title = `Weight · ${formatWeight(item.weight_kg, 'imperial')}`
