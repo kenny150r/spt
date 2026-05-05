@@ -22,31 +22,34 @@ export function AddPumpForm({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  function totalMl(): number | null {
-    if (side === 'both') {
-      const l = leftMl ? Number(leftMl) : 0
-      const r = rightMl ? Number(rightMl) : 0
-      const t = l + r
-      return t > 0 ? t : null
-    }
-    return singleMl ? Number(singleMl) : null
-  }
-
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitting(true)
     setError('')
     try {
+      let amountMl: number | null = null
+      let leftVal: number | null = null
+      let rightVal: number | null = null
+      if (side === 'both') {
+        const l = leftMl ? Number(leftMl) : null
+        const r = rightMl ? Number(rightMl) : null
+        leftVal = l
+        rightVal = r
+        if (l != null || r != null) {
+          amountMl = (l ?? 0) + (r ?? 0)
+        }
+      } else {
+        amountMl = singleMl ? Number(singleMl) : null
+      }
       await addPump({
         baby_id: babyId,
         pumped_at: new Date(pumpedAt).toISOString(),
         side,
-        amount_ml: totalMl(),
+        amount_ml: amountMl,
+        left_ml: leftVal,
+        right_ml: rightVal,
         duration_min: durationMin ? Number(durationMin) : null,
-        notes:
-          side === 'both' && (leftMl || rightMl)
-            ? `${notes.trim() ? notes.trim() + ' · ' : ''}L: ${leftMl || 0} mL · R: ${rightMl || 0} mL`
-            : notes.trim() || null,
+        notes: notes.trim() || null,
       })
       onSaved()
     } catch (err: unknown) {

@@ -12,8 +12,10 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { listPumpsSince } from '../lib/api'
-import type { Baby, PumpEntry, PumpSide } from '../lib/types'
+import { listFeedsSince, listPumpsSince } from '../lib/api'
+import type { Baby, FeedEntry, PumpEntry, PumpSide } from '../lib/types'
+
+const DEFAULT_BREAST_ML_PER_MIN = 8
 
 type Range = '7d' | '14d' | '30d'
 
@@ -35,20 +37,32 @@ interface DayBucket {
   leftMl: number
   rightMl: number
   totalMin: number
+  // Breastfeeding mL equivalent for the day, derived from logged breast feeds:
+  //   Σ duration_min × baby.breast_ml_per_min (default 8 mL/min).
+  // Stacked on top of the L/R pump bars so we can see total milk output
+  // (pumped + nursed) at a glance.
+  breastMl: number
+  breastMin: number
 }
 
 export function PumpingView({ baby }: { baby: Baby }) {
   const [range, setRange] = useState<Range>('14d')
   const [pumps, setPumps] = useState<PumpEntry[]>([])
+  const [feeds, setFeeds] = useState<FeedEntry[]>([])
   const [loading, setLoading] = useState(true)
 
   const days = RANGE_OPTIONS.find((r) => r.id === range)!.days
+  const breastFactor = baby.breast_ml_per_min ?? DEFAULT_BREAST_ML_PER_MIN
 
   const reload = useCallback(async () => {
     setLoading(true)
     const since = startOfDay(subDays(new Date(), days - 1)).toISOString()
-    const data = await listPumpsSince(baby.id, since)
-    setPumps(data)
+    const [pumpRows, feedRows] = await Promise.all([
+      listPumpsSince(baby.id, since),
+      listFeedsSince(baby.id, since),
+    ])
+    setPumps(pumpRows)
+    setFeeds(feedRows)
     setLoading(false)
   }, [baby.id, days])
 
@@ -69,6 +83,8 @@ export function PumpingView({ baby }: { baby: Baby }) {
         leftMl: 0,
         rightMl: 0,
         totalMin: 0,
+        breastMl: 0,
+        breastMin: 0,
       })
     }
     for (const p of pumps) {
@@ -79,17 +95,33 @@ export function PumpingView({ baby }: { baby: Baby }) {
       const ml = p.amount_ml ?? 0
       b.totalMl += ml
       b.totalMin += p.duration_min ?? 0
-      if (p.side === 'left') b.leftMl += ml
-      else if (p.side === 'right') b.rightMl += ml
-      else {
-        // Both: split 50/50 unless notes carried per-side detail (we can't
-        // reliably parse that here so just split for the chart).
+      if (p.side === 'left') {
+        b.leftMl += ml
+      } else if (p.side === 'right') {
+        b.rightMl += ml
+      } else if (p.left_ml != null || p.right_ml != null) {
+        // Both, with per-side amounts logged: use them as-is so the chart
+        // reflects the actual asymmetry rather than a 50/50 estimate.
+        b.leftMl += p.left_ml ?? 0
+        b.rightMl += p.right_ml ?? 0
+      } else {
+        // Both, no per-side detail: split the combined amount 50/50 just so
+        // the bar still renders.
         b.leftMl += ml / 2
         b.rightMl += ml / 2
       }
     }
+    for (const f of feeds) {
+      if (f.type !== 'breast') continue
+      const dateISO = format(new Date(f.fed_at), 'yyyy-MM-dd')
+      const b = buckets.get(dateISO)
+      if (!b) continue
+      const min = f.duration_min ?? 0
+      b.breastMin += min
+      b.breastMl += min * breastFactor
+    }
     return Array.from(buckets.values())
-  }, [pumps, days])
+  }, [pumps, feeds, days, breastFactor])
 
   const today = dailyData[dailyData.length - 1]
   const last7 = dailyData.slice(-7)
@@ -181,7 +213,10 @@ export function PumpingView({ baby }: { baby: Baby }) {
           </div>
         ) : (
           <div className="space-y-4">
-            <ChartCard title="Volume per day (mL · L vs R)">
+            <ChartCard
+              title="Volume per day (mL · L vs R)"
+              subtitle={`Grey = breastfed (est. @ ${breastFactor} mL/min)`}
+            >
               <BarChart data={dailyData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
                 <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
@@ -194,7 +229,14 @@ export function PumpingView({ baby }: { baby: Baby }) {
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="leftMl" name="Left" stackId="lr" fill="#0ea5e9" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="rightMl" name="Right" stackId="lr" fill="#14b8a6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="rightMl" name="Right" stackId="lr" fill="#14b8a6" radius={[0, 0, 0, 0]} />
+                <Bar
+                  dataKey="breastMl"
+                  name="Breast (est)"
+                  stackId="lr"
+                  fill="#cbd5e1"
+                  radius={[4, 4, 0, 0]}
+                />
               </BarChart>
             </ChartCard>
 
@@ -329,12 +371,25 @@ function SummaryCard({
   )
 }
 
-function ChartCard({ title, children }: { title: string; children: React.ReactElement }) {
+function ChartCard({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string
+  subtitle?: string
+  children: React.ReactElement
+}) {
   return (
     <div className="card p-4">
-      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-        {title}
-      </h3>
+      <div className="flex items-baseline justify-between gap-2 mb-2">
+        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+          {title}
+        </h3>
+        {subtitle && (
+          <span className="text-[10px] text-slate-400 truncate">{subtitle}</span>
+        )}
+      </div>
       <div className="h-[180px] -mx-2">
         <ResponsiveContainer width="100%" height="100%">
           {children}

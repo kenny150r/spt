@@ -391,9 +391,13 @@ function ActivityRow({ item, onDelete }: { item: AnyEntry; onDelete: () => void 
     time = item.occurred_at
   } else if (item.kind === 'pump') {
     icon = <Wind className="h-4 w-4 text-teal-700" />
-    const ml = item.amount_ml ? ` · ${item.amount_ml} ml` : ''
+    const ml = item.amount_ml != null ? ` · ${Math.round(item.amount_ml)} ml` : ''
     const dur = item.duration_min ? ` · ${item.duration_min} min` : ''
-    title = `Pump (${item.side})${ml}${dur}`
+    const split =
+      item.side === 'both' && (item.left_ml != null || item.right_ml != null)
+        ? ` (L ${Math.round(item.left_ml ?? 0)} / R ${Math.round(item.right_ml ?? 0)})`
+        : ''
+    title = `Pump (${item.side})${ml}${split}${dur}`
     subtitle = item.notes ?? ''
     time = item.pumped_at
   } else if (item.kind === 'supplement') {

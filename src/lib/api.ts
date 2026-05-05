@@ -236,6 +236,8 @@ export async function addPump(input: {
   pumped_at: string
   side: PumpSide
   amount_ml?: number | null
+  left_ml?: number | null
+  right_ml?: number | null
   duration_min?: number | null
   notes?: string | null
 }): Promise<PumpEntry> {
@@ -246,6 +248,8 @@ export async function addPump(input: {
       pumped_at: input.pumped_at,
       side: input.side,
       amount_ml: input.amount_ml ?? null,
+      left_ml: input.left_ml ?? null,
+      right_ml: input.right_ml ?? null,
       duration_min: input.duration_min ?? null,
       notes: input.notes ?? null,
     })

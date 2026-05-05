@@ -95,12 +95,49 @@ create table if not exists public.pumps (
   pumped_at     timestamptz not null default now(),
   side          text not null check (side in ('left', 'right', 'both')),
   amount_ml     numeric(6, 1) check (amount_ml is null or amount_ml >= 0),
+  -- Per-side amounts populated when side='both' AND the user logged each
+  -- breast separately (or when the bulk importer parsed "L: X mL · R: Y mL"
+  -- out of free-form notes). Null otherwise; chart code falls back to a
+  -- 50/50 split for those rows.
+  left_ml       numeric(6, 1) check (left_ml  is null or left_ml  >= 0),
+  right_ml      numeric(6, 1) check (right_ml is null or right_ml >= 0),
   duration_min  numeric(5, 1) check (duration_min is null or duration_min >= 0),
   notes         text,
   created_at    timestamptz not null default now()
 );
 create index if not exists pumps_baby_pumped_at_idx
   on public.pumps (baby_id, pumped_at desc);
+
+-- Idempotent column additions for installs that ran the older pumps schema.
+alter table public.pumps
+  add column if not exists left_ml  numeric(6, 1),
+  add column if not exists right_ml numeric(6, 1);
+do $$ begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'pumps_left_ml_chk'
+  ) then
+    alter table public.pumps add constraint pumps_left_ml_chk
+      check (left_ml is null or left_ml >= 0);
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname = 'pumps_right_ml_chk'
+  ) then
+    alter table public.pumps add constraint pumps_right_ml_chk
+      check (right_ml is null or right_ml >= 0);
+  end if;
+end $$;
+
+-- Backfill: any existing pump row whose notes look like "L: 40 mL · R: 50 mL"
+-- (the format the form used before left_ml/right_ml columns existed) gets the
+-- numbers lifted into the new columns. Safe to re-run; only rows that don't
+-- already have left_ml/right_ml set are touched.
+update public.pumps
+set
+  left_ml  = (regexp_match(notes, 'L:\s*(\d+(?:\.\d+)?)\s*mL', 'i'))[1]::numeric,
+  right_ml = (regexp_match(notes, 'R:\s*(\d+(?:\.\d+)?)\s*mL', 'i'))[1]::numeric
+where left_ml is null
+  and right_ml is null
+  and notes ~* 'L:\s*\d+(?:\.\d+)?\s*mL.*R:\s*\d+(?:\.\d+)?\s*mL';
 
 create table if not exists public.supplements (
   id            uuid primary key default gen_random_uuid(),

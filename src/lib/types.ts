@@ -58,6 +58,11 @@ export interface PumpEntry {
   pumped_at: string
   side: PumpSide
   amount_ml: number | null
+  // Per-side amounts; only populated for side='both' sessions where the user
+  // (or importer) recorded each breast separately. When null on a 'both' row,
+  // chart code falls back to a 50/50 split of amount_ml.
+  left_ml: number | null
+  right_ml: number | null
   duration_min: number | null
   notes: string | null
   created_at: string

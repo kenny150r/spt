@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "import": "node --env-file=.env scripts/import-csv.mjs"
+    "import": "node --env-file=.env scripts/import-csv.mjs",
+    "import-pumps": "node --env-file=.env scripts/import-pumps.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.3",
