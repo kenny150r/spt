@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Baby as BabyIcon, Droplet, Milk, Scale, Trash2, Utensils } from 'lucide-react'
+import { format } from 'date-fns'
 import { Sheet } from '../components/Sheet'
 import { AddFeedForm } from '../components/forms/AddFeedForm'
 import { AddDiaperForm } from '../components/forms/AddDiaperForm'
@@ -53,6 +54,20 @@ export function LogView({ baby }: { baby: Baby }) {
   // `weights` is reversed in `reload()` so [0] is the most recently MEASURED weight.
   const lastWeight = weights[0]
 
+  // Supplements are once-daily. Check today's feeds for the iron / multivitamin
+  // flags so we can nudge if either is still pending.
+  const supplementsToday = useMemo(() => {
+    const todayKey = format(new Date(), 'yyyy-MM-dd')
+    let multivitamin = false
+    let iron = false
+    for (const f of feeds) {
+      if (format(new Date(f.fed_at), 'yyyy-MM-dd') !== todayKey) continue
+      if (f.multivitamin) multivitamin = true
+      if (f.iron) iron = true
+    }
+    return { multivitamin, iron }
+  }, [feeds])
+
   const close = () => setSheet({ kind: 'closed' })
   const onSaved = () => {
     close()
@@ -73,6 +88,12 @@ export function LogView({ baby }: { baby: Baby }) {
           label="Last feed"
           value={lastFeed ? timeSince(lastFeed.fed_at) : '—'}
           icon={<Utensils className="h-4 w-4" />}
+          extras={
+            <div className="mt-1.5 flex gap-1">
+              <SupplementPill label="Vit" given={supplementsToday.multivitamin} />
+              <SupplementPill label="Fe" given={supplementsToday.iron} />
+            </div>
+          }
         />
         <SummaryCard
           label="Last diaper"
@@ -171,10 +192,12 @@ function SummaryCard({
   label,
   value,
   icon,
+  extras,
 }: {
   label: string
   value: string
   icon: React.ReactNode
+  extras?: React.ReactNode
 }) {
   return (
     <div className="card p-3">
@@ -183,7 +206,27 @@ function SummaryCard({
         {label}
       </div>
       <div className="text-base font-semibold mt-1 truncate">{value}</div>
+      {extras}
     </div>
+  )
+}
+
+// Tiny pill on the Last feed card. Green when that supplement was given at
+// least once today, slate when it's still pending. Both supplements are
+// once-daily — see comments in `supplementsToday` above.
+function SupplementPill({ label, given }: { label: string; given: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center justify-center rounded-md text-[10px] font-semibold leading-none px-1.5 py-1 min-w-[26px] ${
+        given
+          ? 'bg-emerald-100 text-emerald-800'
+          : 'bg-slate-100 text-slate-500'
+      }`}
+      title={given ? `${label}: given today` : `${label}: still needed today`}
+    >
+      {given ? '✓ ' : ''}
+      {label}
+    </span>
   )
 }
 
@@ -225,9 +268,11 @@ function ActivityRow({ item, onDelete }: { item: AnyEntry; onDelete: () => void 
 
   if (item.kind === 'feed') {
     icon = <Milk className="h-4 w-4 text-amber-700" />
+    const supps = [item.multivitamin && 'Vit', item.iron && 'Fe'].filter(Boolean) as string[]
+    const suppStr = supps.length > 0 ? ` · +${supps.join('+')}` : ''
     title = item.type === 'bottle'
-      ? `Bottle${item.amount_ml ? ` · ${item.amount_ml} ml` : ''}`
-      : `Breast${item.duration_min ? ` · ${item.duration_min} min` : ''}${item.side ? ` (${item.side})` : ''}`
+      ? `Bottle${item.amount_ml ? ` · ${item.amount_ml} ml` : ''}${suppStr}`
+      : `Breast${item.duration_min ? ` · ${item.duration_min} min` : ''}${item.side ? ` (${item.side})` : ''}${suppStr}`
     subtitle = item.notes ?? ''
     time = item.fed_at
   } else if (item.kind === 'diaper') {

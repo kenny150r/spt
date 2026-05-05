@@ -127,6 +127,8 @@ export async function addFeed(input: {
   amount_ml?: number | null
   duration_min?: number | null
   side?: FeedSide | null
+  iron?: boolean
+  multivitamin?: boolean
   notes?: string | null
 }): Promise<FeedEntry> {
   const { data, error } = await supabase
@@ -138,6 +140,8 @@ export async function addFeed(input: {
       amount_ml: input.amount_ml ?? null,
       duration_min: input.duration_min ?? null,
       side: input.side ?? null,
+      iron: input.iron ?? false,
+      multivitamin: input.multivitamin ?? false,
       notes: input.notes ?? null,
     })
     .select()

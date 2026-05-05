@@ -64,11 +64,19 @@ create table if not exists public.feeds (
   amount_ml     numeric(6, 1) check (amount_ml is null or amount_ml >= 0),
   duration_min  numeric(5, 1) check (duration_min is null or duration_min >= 0),
   side          text check (side is null or side in ('left', 'right', 'both')),
+  iron          boolean not null default false,
+  multivitamin  boolean not null default false,
   notes         text,
   created_at    timestamptz not null default now()
 );
 create index if not exists feeds_baby_fed_at_idx
   on public.feeds (baby_id, fed_at desc);
+
+-- Idempotent column additions for installs that ran schema.sql before these
+-- columns existed.
+alter table public.feeds
+  add column if not exists iron         boolean not null default false,
+  add column if not exists multivitamin boolean not null default false;
 
 create table if not exists public.diapers (
   id           uuid primary key default gen_random_uuid(),

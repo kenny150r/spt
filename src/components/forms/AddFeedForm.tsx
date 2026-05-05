@@ -17,6 +17,8 @@ export function AddFeedForm({
   const [amountMl, setAmountMl] = useState('')
   const [durationMin, setDurationMin] = useState('')
   const [side, setSide] = useState<FeedSide>('left')
+  const [iron, setIron] = useState(false)
+  const [multivitamin, setMultivitamin] = useState(false)
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string>('')
@@ -33,6 +35,8 @@ export function AddFeedForm({
         amount_ml: type === 'bottle' && amountMl ? Number(amountMl) : null,
         duration_min: type === 'breast' && durationMin ? Number(durationMin) : null,
         side: type === 'breast' ? side : null,
+        iron,
+        multivitamin,
         notes: notes.trim() || null,
       })
       onSaved()
@@ -130,6 +134,22 @@ export function AddFeedForm({
       )}
 
       <div>
+        <label className="label">Supplements given with this feed</label>
+        <div className="grid grid-cols-2 gap-2">
+          <SupplementToggle
+            label="Multivitamin"
+            checked={multivitamin}
+            onChange={setMultivitamin}
+          />
+          <SupplementToggle
+            label="Iron"
+            checked={iron}
+            onChange={setIron}
+          />
+        </div>
+      </div>
+
+      <div>
         <label className="label" htmlFor="notes">Notes</label>
         <input
           id="notes"
@@ -151,5 +171,31 @@ export function AddFeedForm({
         </button>
       </div>
     </form>
+  )
+}
+
+function SupplementToggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string
+  checked: boolean
+  onChange: (v: boolean) => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      aria-pressed={checked}
+      className={`btn ${
+        checked
+          ? 'bg-emerald-600 text-white'
+          : 'bg-white border border-slate-200 text-slate-700'
+      }`}
+    >
+      {checked ? '✓ ' : ''}
+      {label}
+    </button>
   )
 }

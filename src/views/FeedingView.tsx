@@ -33,6 +33,8 @@ interface DayBucket {
   breastCount: number
   bottleMl: number
   breastMin: number
+  multivitamin: boolean
+  iron: boolean
 }
 
 interface HourBinBucket {
@@ -78,6 +80,8 @@ export function FeedingView({ baby }: { baby: Baby }) {
         breastCount: 0,
         bottleMl: 0,
         breastMin: 0,
+        multivitamin: false,
+        iron: false,
       })
     }
     for (const f of feeds) {
@@ -91,6 +95,8 @@ export function FeedingView({ baby }: { baby: Baby }) {
         b.breastCount += 1
         b.breastMin += f.duration_min ?? 0
       }
+      if (f.multivitamin) b.multivitamin = true
+      if (f.iron) b.iron = true
     }
     return Array.from(buckets.values())
   }, [feeds, days])
@@ -425,6 +431,37 @@ export function FeedingView({ baby }: { baby: Baby }) {
       </section>
 
       <section>
+        <div className="flex items-baseline justify-between mb-2">
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+            Supplements
+          </h2>
+          <span className="text-[11px] text-slate-400">
+            both once daily
+          </span>
+        </div>
+        <div className="card p-4">
+          <SupplementStrip
+            label="Multivitamin"
+            color="bg-violet-500"
+            days={dailyData}
+            field="multivitamin"
+          />
+          <div className="mt-3">
+            <SupplementStrip
+              label="Iron"
+              color="bg-rose-500"
+              days={dailyData}
+              field="iron"
+            />
+          </div>
+          <div className="flex justify-between text-[10px] text-slate-400 mt-2 px-0.5">
+            <span>{dailyData[0]?.dateISO ?? ''}</span>
+            <span>today</span>
+          </div>
+        </div>
+      </section>
+
+      <section>
         <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">
           Daily breakdown
         </h2>
@@ -437,10 +474,12 @@ export function FeedingView({ baby }: { baby: Baby }) {
               const breastPct = total > 0 ? (d.breastCount / total) * 100 : 0
               return (
                 <div key={d.dateISO} className="px-4 py-3">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">{d.dateISO}</div>
-                    <div className="text-xs text-slate-500">
-                      {total} feed{total === 1 ? '' : 's'}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-medium truncate">{d.dateISO}</div>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
+                      <SupplementBadge label="Vit" given={d.multivitamin} />
+                      <SupplementBadge label="Fe" given={d.iron} />
+                      <span>· {total} feed{total === 1 ? '' : 's'}</span>
                     </div>
                   </div>
                   <div className="text-xs text-slate-500 mt-0.5">
@@ -493,6 +532,59 @@ function formatHour(h: number): string {
   if (h === 12) return '12p'
   if (h < 12) return `${h}a`
   return `${h - 12}p`
+}
+
+// Compact horizontal strip showing once-daily supplement coverage, one cell
+// per day in the dailyData range. Cells flex to fill the card width so the
+// strip stays readable across 7 / 14 / 30-day ranges. The right-most cell is
+// today.
+function SupplementStrip({
+  label,
+  color,
+  days,
+  field,
+}: {
+  label: string
+  color: string
+  days: DayBucket[]
+  field: 'multivitamin' | 'iron'
+}) {
+  const todayKey = format(new Date(), 'yyyy-MM-dd')
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs font-medium text-slate-600 w-20 shrink-0">
+        {label}
+      </span>
+      <div className="flex flex-1 gap-0.5">
+        {days.map((d) => {
+          const isToday = d.dateISO === todayKey
+          const given = d[field]
+          return (
+            <div
+              key={d.dateISO}
+              title={`${d.dateISO}: ${given ? 'given' : 'not logged'}`}
+              className={`flex-1 h-3.5 rounded-sm ${
+                given ? color : 'bg-slate-100'
+              } ${isToday ? 'ring-2 ring-offset-1 ring-slate-400' : ''}`}
+            />
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function SupplementBadge({ label, given }: { label: string; given: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center justify-center rounded text-[10px] font-semibold leading-none px-1 py-0.5 ${
+        given ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'
+      }`}
+      title={given ? `${label}: logged` : `${label}: not logged`}
+    >
+      {given ? '✓' : '–'} {label}
+    </span>
+  )
 }
 
 interface FeedEvent {

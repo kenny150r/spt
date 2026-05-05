@@ -33,6 +33,8 @@ export interface FeedEntry {
   amount_ml: number | null
   duration_min: number | null
   side: FeedSide | null
+  iron: boolean
+  multivitamin: boolean
   notes: string | null
   created_at: string
 }
