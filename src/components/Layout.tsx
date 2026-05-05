@@ -5,6 +5,7 @@ import {
   LogOut,
   Milk,
   Settings as SettingsIcon,
+  Sparkles,
   Wind,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -12,7 +13,14 @@ import type { Baby } from '../lib/types'
 import { ageString } from '../lib/format'
 import { supabase } from '../lib/supabase'
 
-export type View = 'log' | 'feeding' | 'pumping' | 'diapers' | 'growth' | 'settings'
+export type View =
+  | 'log'
+  | 'feeding'
+  | 'pumping'
+  | 'diapers'
+  | 'growth'
+  | 'ask'
+  | 'settings'
 
 interface Props {
   baby: Baby
@@ -61,7 +69,7 @@ export function Layout({ baby, view, onChangeView, children }: Props) {
       <main className="flex-1 max-w-2xl w-full mx-auto px-4 py-4 pb-28">{children}</main>
 
       <nav className="fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 pb-[env(safe-area-inset-bottom)]">
-        <div className="max-w-2xl mx-auto px-1 py-2 grid grid-cols-5">
+        <div className="max-w-2xl mx-auto px-1 py-2 grid grid-cols-6">
           <NavButton
             label="Log"
             active={view === 'log'}
@@ -69,7 +77,7 @@ export function Layout({ baby, view, onChangeView, children }: Props) {
             icon={<Activity className="h-5 w-5" />}
           />
           <NavButton
-            label="Feeding"
+            label="Feed"
             active={view === 'feeding'}
             onClick={() => onChangeView('feeding')}
             icon={<Milk className="h-5 w-5" />}
@@ -81,7 +89,7 @@ export function Layout({ baby, view, onChangeView, children }: Props) {
             icon={<Wind className="h-5 w-5" />}
           />
           <NavButton
-            label="Diapers"
+            label="Diaper"
             active={view === 'diapers'}
             onClick={() => onChangeView('diapers')}
             icon={<Droplet className="h-5 w-5" />}
@@ -91,6 +99,12 @@ export function Layout({ baby, view, onChangeView, children }: Props) {
             active={view === 'growth'}
             onClick={() => onChangeView('growth')}
             icon={<LineChart className="h-5 w-5" />}
+          />
+          <NavButton
+            label="Ask"
+            active={view === 'ask'}
+            onClick={() => onChangeView('ask')}
+            icon={<Sparkles className="h-5 w-5" />}
           />
         </div>
       </nav>

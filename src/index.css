@@ -40,4 +40,48 @@
   .label {
     @apply block text-sm font-medium text-slate-700 mb-1.5;
   }
+  /* Lightweight markdown styling for Gemini chat replies. Tailwind preflight
+     strips list markers and heading sizes; restore just what the model
+     actually emits. */
+  .markdown-body p {
+    @apply my-1.5 first:mt-0 last:mb-0;
+  }
+  .markdown-body h1,
+  .markdown-body h2,
+  .markdown-body h3,
+  .markdown-body h4 {
+    @apply font-semibold mt-3 mb-1 first:mt-0;
+  }
+  .markdown-body h1 { @apply text-base; }
+  .markdown-body h2 { @apply text-sm; }
+  .markdown-body h3,
+  .markdown-body h4 { @apply text-sm; }
+  .markdown-body ul {
+    @apply list-disc pl-5 my-1.5 space-y-0.5;
+  }
+  .markdown-body ol {
+    @apply list-decimal pl-5 my-1.5 space-y-0.5;
+  }
+  .markdown-body code {
+    @apply font-mono text-[0.85em] bg-slate-200/70 rounded px-1 py-0.5;
+  }
+  .markdown-body pre {
+    @apply bg-slate-200/70 rounded-lg p-2 overflow-x-auto my-2;
+  }
+  .markdown-body pre code {
+    @apply bg-transparent p-0;
+  }
+  .markdown-body strong {
+    @apply font-semibold;
+  }
+  .markdown-body a {
+    @apply text-brand-700 underline;
+  }
+  .markdown-body table {
+    @apply text-xs my-2 border-collapse;
+  }
+  .markdown-body th,
+  .markdown-body td {
+    @apply border border-slate-200 px-2 py-1 text-left;
+  }
 }
