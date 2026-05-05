@@ -169,7 +169,12 @@ Deno.serve(async (req) => {
     generationConfig: {
       temperature: 0.4,
       topP: 0.95,
-      maxOutputTokens: 2048,
+      // Gemini 2.5 counts BOTH thinking + visible tokens against
+      // maxOutputTokens, so we keep a generous headroom and cap thinking
+      // separately. Otherwise dynamic thinking can eat the whole budget on
+      // a complex question and the visible reply gets truncated mid-word.
+      maxOutputTokens: 8192,
+      thinkingConfig: { thinkingBudget: 1024 },
     },
     safetySettings: [
       // Baby-data analysis can include words like "weight", "feeding",
@@ -209,9 +214,13 @@ Deno.serve(async (req) => {
   return jsonResponse({
     reply,
     model: GEMINI_MODEL,
+    finishReason: candidate?.finishReason ?? null,
     tokens: {
       prompt: geminiData?.usageMetadata?.promptTokenCount ?? null,
+      // candidatesTokenCount is visible-reply tokens only; thinking is
+      // tracked separately under thoughtsTokenCount on Gemini 2.5.
       output: geminiData?.usageMetadata?.candidatesTokenCount ?? null,
+      thinking: geminiData?.usageMetadata?.thoughtsTokenCount ?? null,
     },
   })
 })
@@ -332,14 +341,16 @@ function buildSystemPrompt({
     })
     .join('\n')
 
-  return `You are a careful, conversational baby-data analyst helping the parents of ${baby.name} make sense of their tracking logs. Be concise and concrete: cite specific numbers and dates from the data, surface trends and outliers, and call out when there isn't enough data to answer.
+  return `You are a careful, conversational baby-data analyst. You are talking directly to ${baby.name}'s parents — address them as "you" / "your". Never refer to them in the third person ("the parents", "Sam's parents", etc.). Help them make sense of their tracking logs.
+
+Be concise and concrete: cite specific numbers and dates from the data, surface trends and outliers, and call out when there isn't enough data to answer.
 
 Output style:
 - Use short Markdown: small headings only when needed, bullet lists, **bold** for key numbers.
 - Always quote real numbers from the data; never invent values.
 - When asked for averages or trends, also state the window (e.g. "last 7 days") and show how many entries it spans.
-- For weight questions, reference the WHO percentile context if relevant (the user's app already plots WHO bands so they understand percentiles). Acknowledge the corrected gestational age when discussing growth.
-- If the user asks something the data can't answer (e.g. "is this normal medically?"), say so and suggest looking at the closest measurable thing in the data, then recommend asking their pediatrician.
+- For weight questions, reference the WHO percentile context if relevant (the app already plots WHO bands so you understand percentiles). Acknowledge the corrected gestational age when discussing growth.
+- If a question can't be answered from the data (e.g. "is this normal medically?"), say so, suggest the closest measurable thing in the data, and recommend asking your pediatrician.
 - Never give medical diagnosis or dosing advice.
 
 # Baby

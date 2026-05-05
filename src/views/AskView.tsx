@@ -28,7 +28,13 @@ interface ChatMsg {
   role: 'user' | 'assistant'
   content: string
   // Optional metadata surfaced in the UI but not sent back to the model.
-  meta?: { tokensIn?: number | null; tokensOut?: number | null; model?: string }
+  meta?: {
+    tokensIn?: number | null
+    tokensOut?: number | null
+    tokensThinking?: number | null
+    model?: string
+    finishReason?: string | null
+  }
 }
 
 const STORAGE_KEY_PREFIX = 'spt-ask-history-v1:'
@@ -85,7 +91,14 @@ export function AskView({ baby }: { baby: Baby }) {
       if (invokeErr) {
         throw new Error(invokeErr.message ?? 'Edge function call failed')
       }
-      const reply = (data as { reply?: string; model?: string; tokens?: { prompt?: number; output?: number } } | null)
+      const reply = data as
+        | {
+            reply?: string
+            model?: string
+            finishReason?: string | null
+            tokens?: { prompt?: number; output?: number; thinking?: number }
+          }
+        | null
       if (!reply?.reply) {
         const errMsg = (data as { error?: string } | null)?.error ?? 'Empty reply from Gemini'
         throw new Error(errMsg)
@@ -99,6 +112,8 @@ export function AskView({ baby }: { baby: Baby }) {
             model: reply.model,
             tokensIn: reply.tokens?.prompt ?? null,
             tokensOut: reply.tokens?.output ?? null,
+            tokensThinking: reply.tokens?.thinking ?? null,
+            finishReason: reply.finishReason ?? null,
           },
         },
       ])
@@ -260,6 +275,8 @@ export function AskView({ baby }: { baby: Baby }) {
 
 function Bubble({ msg }: { msg: ChatMsg }) {
   const isUser = msg.role === 'user'
+  const truncated =
+    !isUser && msg.meta?.finishReason && msg.meta.finishReason !== 'STOP'
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
@@ -276,9 +293,16 @@ function Bubble({ msg }: { msg: ChatMsg }) {
             <ReactMarkdown>{msg.content}</ReactMarkdown>
           </div>
         )}
+        {truncated && (
+          <div className="text-[11px] text-amber-700 mt-1.5 italic">
+            Response was cut off ({msg.meta?.finishReason}). Ask a follow-up to
+            continue, or try a smaller window.
+          </div>
+        )}
         {!isUser && msg.meta?.tokensIn != null && (
           <div className="text-[10px] text-slate-400 mt-1">
             {msg.meta.model} · {msg.meta.tokensIn} in · {msg.meta.tokensOut} out
+            {msg.meta.tokensThinking ? ` · ${msg.meta.tokensThinking} thinking` : ''}
           </div>
         )}
       </div>
