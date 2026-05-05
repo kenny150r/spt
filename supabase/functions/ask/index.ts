@@ -24,12 +24,21 @@
 //   supabase secrets set OPENAI_API_KEY=sk-... LLM_PROVIDER=openai
 //
 // Request body:
-//   { babyId: string, rangeDays?: number, mode?: 'fast'|'deep', messages: ChatMsg[] }
+//   { babyId: string, rangeDays?: number, mode?: 'fast'|'deep',
+//     stream?: boolean, messages: ChatMsg[] }
 //
-// Response body:
+// Response body (stream=false, default):
 //   { reply: string, model: string, mode: 'fast'|'deep', finishReason: string,
 //     tokens: { prompt, output, thinking } }
 //   or { error: string } with an appropriate HTTP status.
+//
+// Response body (stream=true):
+//   text/event-stream of `data: {json}\n\n` events with shapes
+//     { type: 'chunk', text: string }                        // partial reply
+//     { type: 'done', model, mode, finishReason, tokens }     // terminal
+//     { type: 'error', error: string }                        // mid-stream fail
+//   The HTTP status is 200 once streaming starts; auth/validation failures
+//   still return JSON with the appropriate non-200 status.
 
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4'
@@ -106,6 +115,7 @@ Deno.serve(async (req) => {
     rangeDays?: number
     messages?: ChatMsg[]
     mode?: Mode
+    stream?: boolean
   }
   try {
     body = await req.json()
@@ -117,6 +127,7 @@ Deno.serve(async (req) => {
   const rangeDays = clamp(body.rangeDays ?? DEFAULT_RANGE_DAYS, 7, MAX_RANGE_DAYS)
   const messages = Array.isArray(body.messages) ? body.messages : []
   const mode: Mode = body.mode === 'deep' ? 'deep' : 'fast'
+  const stream = body.stream === true
   if (!babyId) return jsonResponse({ error: 'babyId required' }, 400)
   if (messages.length === 0) return jsonResponse({ error: 'messages required' }, 400)
 
@@ -182,11 +193,28 @@ Deno.serve(async (req) => {
   })
 
   // ---- call the LLM ----
+  const args: ProviderArgs = { apiKey: provider.key, mode, systemPrompt, messages }
+
+  if (stream) {
+    // For streaming we want to surface upstream connect errors as a
+    // proper non-200 JSON response so the client can show a useful
+    // toast; once the stream is open it's too late, so any error from
+    // there on is delivered as a `{ type: 'error' }` SSE event.
+    try {
+      return provider.name === 'openai'
+        ? await streamOpenAI(args, mode)
+        : await streamGemini(args, mode)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'LLM call failed'
+      return jsonResponse({ error: msg }, 502)
+    }
+  }
+
   try {
     const result =
       provider.name === 'openai'
-        ? await callOpenAI({ apiKey: provider.key, mode, systemPrompt, messages })
-        : await callGemini({ apiKey: provider.key, mode, systemPrompt, messages })
+        ? await callOpenAI(args)
+        : await callGemini(args)
 
     return jsonResponse({
       reply: result.reply,
@@ -385,6 +413,255 @@ async function callOpenAI({
       thinking: data?.usage?.completion_tokens_details?.reasoning_tokens ?? null,
     },
   }
+}
+
+// ---------- streaming ----------
+
+interface StreamMeta {
+  finishReason: string | null
+  tokens: {
+    prompt: number | null
+    output: number | null
+    thinking: number | null
+  }
+}
+
+const SSE_HEADERS = {
+  ...CORS,
+  'Content-Type': 'text/event-stream; charset=utf-8',
+  'Cache-Control': 'no-cache, no-transform',
+  Connection: 'keep-alive',
+  // Hint upstream proxies (Cloudflare, nginx) not to buffer the stream.
+  'X-Accel-Buffering': 'no',
+}
+
+function sseEvent(payload: unknown): Uint8Array {
+  return new TextEncoder().encode(`data: ${JSON.stringify(payload)}\n\n`)
+}
+
+// Iterate over `data: …\n\n` events from an SSE byte stream, yielding the
+// raw JSON payload string for each (skipping `[DONE]`, comments, blanks).
+async function* iterSseEvents(
+  body: ReadableStream<Uint8Array>,
+): AsyncGenerator<string> {
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  try {
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      // SSE events are separated by a blank line. Both servers we talk to
+      // use \n\n, but be tolerant of \r\n\r\n just in case.
+      const normalized = buffer.replace(/\r\n/g, '\n')
+      const events = normalized.split('\n\n')
+      buffer = events.pop() ?? ''
+      for (const ev of events) {
+        for (const line of ev.split('\n')) {
+          if (!line.startsWith('data:')) continue
+          const data = line.slice(5).trim()
+          if (!data || data === '[DONE]') continue
+          yield data
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
+
+async function streamGemini(
+  { apiKey, mode, systemPrompt, messages }: ProviderArgs,
+  modeOut: Mode,
+): Promise<Response> {
+  const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash'
+  const thinkingBudget = mode === 'deep' ? 1024 : 0
+
+  const contents = messages.map((m) => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }))
+
+  const url =
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent` +
+    `?alt=sse&key=${encodeURIComponent(apiKey)}`
+
+  const reqBody = {
+    systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
+    contents,
+    generationConfig: {
+      temperature: 0.4,
+      topP: 0.95,
+      maxOutputTokens: 8192,
+      thinkingConfig: { thinkingBudget },
+    },
+    safetySettings: [
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+    ],
+  }
+
+  const upstream = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(reqBody),
+  })
+
+  if (!upstream.ok || !upstream.body) {
+    const text = await upstream.text().catch(() => '')
+    throw new Error(`Gemini API error (${upstream.status}): ${text.slice(0, 500)}`)
+  }
+
+  const meta: StreamMeta = {
+    finishReason: null,
+    tokens: { prompt: null, output: null, thinking: null },
+  }
+
+  const out = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for await (const data of iterSseEvents(upstream.body!)) {
+          let obj: any
+          try {
+            obj = JSON.parse(data)
+          } catch {
+            continue
+          }
+          const candidate = obj?.candidates?.[0]
+          const parts = candidate?.content?.parts ?? []
+          let chunkText = ''
+          for (const p of parts) {
+            // Gemini marks reasoning parts with `thought: true`; skip those
+            // so we don't dump chain-of-thought into the chat bubble.
+            if (p?.thought) continue
+            if (typeof p?.text === 'string') chunkText += p.text
+          }
+          if (chunkText) {
+            controller.enqueue(sseEvent({ type: 'chunk', text: chunkText }))
+          }
+          if (candidate?.finishReason) meta.finishReason = candidate.finishReason
+          if (obj?.usageMetadata) {
+            meta.tokens.prompt =
+              obj.usageMetadata.promptTokenCount ?? meta.tokens.prompt
+            meta.tokens.output =
+              obj.usageMetadata.candidatesTokenCount ?? meta.tokens.output
+            meta.tokens.thinking =
+              obj.usageMetadata.thoughtsTokenCount ?? meta.tokens.thinking
+          }
+        }
+        controller.enqueue(
+          sseEvent({ type: 'done', model, mode: modeOut, ...meta }),
+        )
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'stream failed'
+        controller.enqueue(sseEvent({ type: 'error', error: msg }))
+      } finally {
+        controller.close()
+      }
+    },
+    cancel() {
+      upstream.body?.cancel().catch(() => {})
+    },
+  })
+
+  return new Response(out, { status: 200, headers: SSE_HEADERS })
+}
+
+async function streamOpenAI(
+  { apiKey, mode, systemPrompt, messages }: ProviderArgs,
+  modeOut: Mode,
+): Promise<Response> {
+  const fastModel = Deno.env.get('OPENAI_FAST_MODEL') ?? 'gpt-5.4-nano'
+  const deepModel = Deno.env.get('OPENAI_DEEP_MODEL') ?? 'gpt-5.5'
+  const model = mode === 'deep' ? deepModel : fastModel
+  const reasoning = isReasoningModel(model)
+
+  const chatMessages = [
+    { role: 'system', content: systemPrompt },
+    ...messages.map((m) => ({ role: m.role, content: m.content })),
+  ]
+
+  const reqBody: Record<string, unknown> = {
+    model,
+    messages: chatMessages,
+    stream: true,
+    // Without this opt-in OpenAI omits `usage` from streaming responses,
+    // and we lose token counts for the meta footer.
+    stream_options: { include_usage: true },
+  }
+  if (reasoning) {
+    reqBody.max_completion_tokens = 8192
+    reqBody.reasoning_effort = mode === 'deep' ? 'medium' : 'low'
+  } else {
+    reqBody.temperature = 0.4
+    reqBody.max_tokens = 8192
+  }
+
+  const upstream = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(reqBody),
+  })
+
+  if (!upstream.ok || !upstream.body) {
+    const text = await upstream.text().catch(() => '')
+    throw new Error(`OpenAI API error (${upstream.status}): ${text.slice(0, 500)}`)
+  }
+
+  const meta: StreamMeta = {
+    finishReason: null,
+    tokens: { prompt: null, output: null, thinking: null },
+  }
+
+  const out = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for await (const data of iterSseEvents(upstream.body!)) {
+          let obj: any
+          try {
+            obj = JSON.parse(data)
+          } catch {
+            continue
+          }
+          const choice = obj?.choices?.[0]
+          const delta = choice?.delta?.content
+          if (typeof delta === 'string' && delta.length > 0) {
+            controller.enqueue(sseEvent({ type: 'chunk', text: delta }))
+          }
+          if (choice?.finish_reason) {
+            meta.finishReason = String(choice.finish_reason).toUpperCase()
+          }
+          if (obj?.usage) {
+            meta.tokens.prompt = obj.usage.prompt_tokens ?? meta.tokens.prompt
+            meta.tokens.output =
+              obj.usage.completion_tokens ?? meta.tokens.output
+            meta.tokens.thinking =
+              obj.usage.completion_tokens_details?.reasoning_tokens ??
+              meta.tokens.thinking
+          }
+        }
+        controller.enqueue(
+          sseEvent({ type: 'done', model, mode: modeOut, ...meta }),
+        )
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'stream failed'
+        controller.enqueue(sseEvent({ type: 'error', error: msg }))
+      } finally {
+        controller.close()
+      }
+    },
+    cancel() {
+      upstream.body?.cancel().catch(() => {})
+    },
+  })
+
+  return new Response(out, { status: 200, headers: SSE_HEADERS })
 }
 
 // ---------- helpers ----------

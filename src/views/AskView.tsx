@@ -87,61 +87,47 @@ export function AskView({ baby }: { baby: Baby }) {
     if (!text || submitting) return
 
     setError(null)
-    const next: ChatMsg[] = [...messages, { role: 'user', content: text }]
-    setMessages(next)
+    const userTurn: ChatMsg = { role: 'user', content: text }
+    const next: ChatMsg[] = [...messages, userTurn]
+    // Add an empty assistant bubble we'll mutate in place as chunks arrive.
+    const assistantIdx = next.length
+    setMessages([...next, { role: 'assistant', content: '' }])
     setDraft('')
     setSubmitting(true)
 
     try {
-      const { data, error: invokeErr } = await supabase.functions.invoke('ask', {
-        body: {
-          babyId: baby.id,
-          rangeDays: days,
-          mode,
-          // Only send role + content; the meta block is UI-only.
-          messages: next.map((m) => ({ role: m.role, content: m.content })),
+      const { reply, meta } = await streamAsk({
+        babyId: baby.id,
+        rangeDays: days,
+        mode,
+        messages: next.map((m) => ({ role: m.role, content: m.content })),
+        onChunk: (delta) => {
+          // Functional update so we don't depend on a stale `messages` ref.
+          setMessages((prev) => {
+            const copy = prev.slice()
+            const cur = copy[assistantIdx]
+            if (!cur || cur.role !== 'assistant') return prev
+            copy[assistantIdx] = { ...cur, content: cur.content + delta }
+            return copy
+          })
         },
       })
-      if (invokeErr) {
-        // FunctionsError doesn't surface the body the function returned in
-        // its `.message`; if we got a `data` payload alongside, prefer the
-        // message it contains so the user sees "Couldn't reach Gemini:
-        // OPENAI_API_KEY is invalid" instead of a generic 502.
-        const detail = (data as { error?: string } | null)?.error
-        throw new Error(detail || invokeErr.message || 'Edge function call failed')
-      }
-      const reply = data as
-        | {
-            reply?: string
-            model?: string
-            mode?: Mode
-            finishReason?: string | null
-            tokens?: { prompt?: number; output?: number; thinking?: number }
-          }
-        | null
-      if (!reply?.reply) {
-        const errMsg = (data as { error?: string } | null)?.error ?? 'Empty reply from Gemini'
-        throw new Error(errMsg)
-      }
-      setMessages([
-        ...next,
-        {
+
+      // Finalize: stamp meta + ensure the saved content matches the full
+      // reply (in case the streaming-state ref above missed a final chunk).
+      setMessages((prev) => {
+        const copy = prev.slice()
+        copy[assistantIdx] = {
           role: 'assistant',
-          content: reply.reply,
-          meta: {
-            model: reply.model,
-            mode: reply.mode,
-            tokensIn: reply.tokens?.prompt ?? null,
-            tokensOut: reply.tokens?.output ?? null,
-            tokensThinking: reply.tokens?.thinking ?? null,
-            finishReason: reply.finishReason ?? null,
-          },
-        },
-      ])
+          content: reply || copy[assistantIdx]?.content || '',
+          meta,
+        }
+        return copy
+      })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error'
       setError(message)
-      // Roll back the optimistic user turn on hard failure so retry is easy.
+      // Roll back the optimistic user + empty assistant turns so retry is easy.
       setMessages(messages)
       setDraft(text)
     } finally {
@@ -247,18 +233,12 @@ export function AskView({ baby }: { baby: Baby }) {
           </div>
         )}
 
-        {messages.map((m, i) => (
-          <Bubble key={i} msg={m} />
-        ))}
-
-        {submitting && (
-          <div className="flex items-center gap-2 text-sm text-slate-400 px-2">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-400 animate-pulse" />
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-400 animate-pulse [animation-delay:120ms]" />
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-400 animate-pulse [animation-delay:240ms]" />
-            <span className="ml-1">thinking…</span>
-          </div>
-        )}
+        {messages.map((m, i) => {
+          const isLast = i === messages.length - 1
+          const isLiveAssistant =
+            submitting && isLast && m.role === 'assistant' && m.content === ''
+          return <Bubble key={i} msg={m} pending={isLiveAssistant} />
+        })}
 
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 text-red-800 text-xs px-3 py-2">
@@ -320,7 +300,7 @@ export function AskView({ baby }: { baby: Baby }) {
   )
 }
 
-function Bubble({ msg }: { msg: ChatMsg }) {
+function Bubble({ msg, pending = false }: { msg: ChatMsg; pending?: boolean }) {
   const isUser = msg.role === 'user'
   const truncated =
     !isUser && msg.meta?.finishReason && msg.meta.finishReason !== 'STOP'
@@ -335,6 +315,12 @@ function Bubble({ msg }: { msg: ChatMsg }) {
       >
         {isUser ? (
           <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+        ) : pending ? (
+          <div className="flex items-center gap-1 py-0.5" aria-label="thinking">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-400 animate-pulse" />
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-400 animate-pulse [animation-delay:120ms]" />
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-400 animate-pulse [animation-delay:240ms]" />
+          </div>
         ) : (
           <div className="markdown-body break-words">
             <ReactMarkdown>{msg.content}</ReactMarkdown>
@@ -357,6 +343,137 @@ function Bubble({ msg }: { msg: ChatMsg }) {
       </div>
     </div>
   )
+}
+
+// ---- streaming transport ---------------------------------------------------
+
+interface StreamArgs {
+  babyId: string
+  rangeDays: number
+  mode: Mode
+  messages: { role: 'user' | 'assistant'; content: string }[]
+  onChunk: (text: string) => void
+}
+
+interface StreamResult {
+  reply: string
+  meta: ChatMsg['meta']
+}
+
+// Stream the `ask` edge function. We bypass `supabase.functions.invoke` here
+// because it always buffers the response body before resolving — which
+// defeats the whole point. Instead we hit the function URL directly with the
+// session JWT and consume the SSE byte stream as it arrives.
+async function streamAsk({
+  babyId,
+  rangeDays,
+  mode,
+  messages,
+  onChunk,
+}: StreamArgs): Promise<StreamResult> {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+  if (!supabaseUrl || !anonKey) {
+    throw new Error('Supabase env vars are not configured')
+  }
+  const { data: sessionData, error: sessionErr } = await supabase.auth.getSession()
+  if (sessionErr) throw new Error(sessionErr.message)
+  const accessToken = sessionData.session?.access_token
+  if (!accessToken) throw new Error('Not signed in')
+
+  const resp = await fetch(`${supabaseUrl}/functions/v1/ask`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+      Authorization: `Bearer ${accessToken}`,
+      apikey: anonKey,
+    },
+    body: JSON.stringify({
+      babyId,
+      rangeDays,
+      mode,
+      stream: true,
+      messages,
+    }),
+  })
+
+  if (!resp.ok || !resp.body) {
+    // Auth / validation / upstream-connect errors come back as JSON; surface
+    // their `error` message verbatim so the user sees the real reason.
+    let detail = ''
+    try {
+      const j = await resp.json()
+      detail = j?.error ?? JSON.stringify(j)
+    } catch {
+      detail = await resp.text().catch(() => '')
+    }
+    throw new Error(detail || `Edge function returned HTTP ${resp.status}`)
+  }
+
+  const reader = resp.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let reply = ''
+  let meta: ChatMsg['meta'] = {}
+  let streamError: string | null = null
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const events = buffer.replace(/\r\n/g, '\n').split('\n\n')
+      buffer = events.pop() ?? ''
+      for (const ev of events) {
+        for (const line of ev.split('\n')) {
+          if (!line.startsWith('data:')) continue
+          const data = line.slice(5).trim()
+          if (!data) continue
+          let payload:
+            | { type: 'chunk'; text: string }
+            | {
+                type: 'done'
+                model?: string
+                mode?: Mode
+                finishReason?: string | null
+                tokens?: {
+                  prompt?: number | null
+                  output?: number | null
+                  thinking?: number | null
+                }
+              }
+            | { type: 'error'; error: string }
+          try {
+            payload = JSON.parse(data)
+          } catch {
+            continue
+          }
+          if (payload.type === 'chunk') {
+            reply += payload.text
+            onChunk(payload.text)
+          } else if (payload.type === 'done') {
+            meta = {
+              model: payload.model,
+              mode: payload.mode,
+              finishReason: payload.finishReason ?? null,
+              tokensIn: payload.tokens?.prompt ?? null,
+              tokensOut: payload.tokens?.output ?? null,
+              tokensThinking: payload.tokens?.thinking ?? null,
+            }
+          } else if (payload.type === 'error') {
+            streamError = payload.error
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
+
+  if (streamError && !reply) throw new Error(streamError)
+  if (!reply) throw new Error('Empty reply')
+  return { reply, meta }
 }
 
 function loadModePref(): Mode {

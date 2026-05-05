@@ -13,7 +13,10 @@ OpenAI's Chat Completions API (selectable per-deploy). Lives at
 3. Builds a compact, one-line-per-row context block plus a system
    instruction.
 4. Calls the selected provider with a server-only API key.
-5. Returns `{ reply, model, mode, finishReason, tokens }` to the client.
+5. Returns `{ reply, model, mode, finishReason, tokens }` to the client,
+   or — when the request body has `stream: true` — a `text/event-stream`
+   of `{ type: 'chunk', text }` deltas terminated by a single
+   `{ type: 'done', model, mode, finishReason, tokens }` event.
 
 The provider's API key never reaches the browser.
 
