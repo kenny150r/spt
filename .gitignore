@@ -27,3 +27,8 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Supabase CLI scratch (created by `supabase link`, `supabase functions
+# serve`, etc.). Project ref + local-only state — should never be checked in.
+supabase/.temp/
+supabase/.branches/
