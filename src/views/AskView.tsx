@@ -105,7 +105,12 @@ export function AskView({ baby }: { baby: Baby }) {
         },
       })
       if (invokeErr) {
-        throw new Error(invokeErr.message ?? 'Edge function call failed')
+        // FunctionsError doesn't surface the body the function returned in
+        // its `.message`; if we got a `data` payload alongside, prefer the
+        // message it contains so the user sees "Couldn't reach Gemini:
+        // OPENAI_API_KEY is invalid" instead of a generic 502.
+        const detail = (data as { error?: string } | null)?.error
+        throw new Error(detail || invokeErr.message || 'Edge function call failed')
       }
       const reply = data as
         | {
@@ -233,11 +238,12 @@ export function AskView({ baby }: { baby: Baby }) {
         </div>
         <p className="text-[11px] text-slate-400 mt-2 leading-snug">
           Sends weights (all time) plus the last {days} days of feeds, pumps,
-          diapers, and supplements to Gemini through your Supabase Edge
-          Function. <strong className="font-medium">Fast</strong> skips the
-          reasoning step — try it first; switch to{' '}
+          diapers, and supplements to your configured LLM provider via the
+          Supabase Edge Function. <strong className="font-medium">Fast</strong>{' '}
+          skips the reasoning step — try it first; switch to{' '}
           <strong className="font-medium">Deep</strong> for trend / comparison
-          questions. Don't paste anything you wouldn't share with Google.
+          questions. Don't paste anything you wouldn't share with Google or
+          OpenAI.
         </p>
       </section>
 

@@ -1,26 +1,39 @@
 // Edge Function: /functions/v1/ask
 //
-// Proxies user questions about their baby data to the Gemini API. The
-// Gemini API key lives only as a Supabase secret (`GEMINI_API_KEY`) so it
+// Proxies user questions about their baby data to a chosen LLM provider
+// (Gemini or OpenAI). The API key lives only as a Supabase secret so it
 // never touches the client. Each request must carry the user's Supabase
 // access token; the function uses that token to read data via PostgREST,
 // which keeps Row Level Security in force end-to-end.
 //
+// Provider selection (env vars / Supabase secrets):
+//   LLM_PROVIDER  = "gemini" (default) | "openai"
+//   GEMINI_API_KEY     - required when provider=gemini
+//   OPENAI_API_KEY     - required when provider=openai
+//
+//   GEMINI_MODEL       - override the Gemini model (default: gemini-2.5-flash)
+//   OPENAI_FAST_MODEL  - non-reasoning model used for mode=fast (default: gpt-4o-mini)
+//   OPENAI_DEEP_MODEL  - reasoning model used for mode=deep (default: gpt-5-mini)
+//
+// If neither LLM_PROVIDER nor a matching key is configured we fall back to
+// whichever provider has its key set (so just running
+// `supabase secrets set OPENAI_API_KEY=...` is enough to switch).
+//
 // Deploy:
 //   supabase functions deploy ask
-//   supabase secrets set GEMINI_API_KEY=<your-key>
+//   supabase secrets set OPENAI_API_KEY=sk-... LLM_PROVIDER=openai
 //
 // Request body:
-//   { babyId: string, rangeDays?: number, messages: ChatMsg[] }
+//   { babyId: string, rangeDays?: number, mode?: 'fast'|'deep', messages: ChatMsg[] }
 //
 // Response body:
-//   { reply: string, model: string, tokens?: { prompt: number, output: number } }
+//   { reply: string, model: string, mode: 'fast'|'deep', finishReason: string,
+//     tokens: { prompt, output, thinking } }
 //   or { error: string } with an appropriate HTTP status.
 
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4'
 
-const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash'
 const MAX_RANGE_DAYS = 365
 const DEFAULT_RANGE_DAYS = 60
 
@@ -43,6 +56,20 @@ interface ChatMsg {
   content: string
 }
 
+type Provider = 'gemini' | 'openai'
+type Mode = 'fast' | 'deep'
+
+interface NormalizedReply {
+  reply: string
+  model: string
+  finishReason: string | null
+  tokens: {
+    prompt: number | null
+    output: number | null
+    thinking: number | null
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS })
   if (req.method !== 'POST') return jsonResponse({ error: 'method not allowed' }, 405)
@@ -55,13 +82,12 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
-  const geminiKey = Deno.env.get('GEMINI_API_KEY')
   if (!supabaseUrl || !anonKey) {
     return jsonResponse({ error: 'function misconfigured: missing Supabase env' }, 500)
   }
-  if (!geminiKey) {
-    return jsonResponse({ error: 'function misconfigured: missing GEMINI_API_KEY secret' }, 500)
-  }
+
+  const provider = resolveProvider()
+  if (!provider.ok) return jsonResponse({ error: provider.error }, 500)
 
   // The user's JWT is forwarded so PostgREST applies RLS as that user.
   const supabase = createClient(supabaseUrl, anonKey, {
@@ -79,7 +105,7 @@ Deno.serve(async (req) => {
     babyId?: string
     rangeDays?: number
     messages?: ChatMsg[]
-    mode?: 'fast' | 'deep'
+    mode?: Mode
   }
   try {
     body = await req.json()
@@ -90,11 +116,7 @@ Deno.serve(async (req) => {
   const babyId = body.babyId
   const rangeDays = clamp(body.rangeDays ?? DEFAULT_RANGE_DAYS, 7, MAX_RANGE_DAYS)
   const messages = Array.isArray(body.messages) ? body.messages : []
-  // Fast mode = thinking off (instant, near-zero quota cost; great for
-  // straightforward lookups). Deep mode = bounded thinking, better at
-  // multi-step reasoning and outlier hunting.
-  const mode: 'fast' | 'deep' = body.mode === 'deep' ? 'deep' : 'fast'
-  const thinkingBudget = mode === 'deep' ? 1024 : 0
+  const mode: Mode = body.mode === 'deep' ? 'deep' : 'fast'
   if (!babyId) return jsonResponse({ error: 'babyId required' }, 400)
   if (messages.length === 0) return jsonResponse({ error: 'messages required' }, 400)
 
@@ -104,8 +126,6 @@ Deno.serve(async (req) => {
   const [babyRes, weightsRes, feedsRes, diapersRes, pumpsRes, supplementsRes] =
     await Promise.all([
       supabase.from('babies').select('*').eq('id', babyId).maybeSingle(),
-      // Weights are sparse and important for growth context — pull all of them
-      // regardless of rangeDays. There aren't enough rows for it to matter.
       supabase
         .from('weights')
         .select('*')
@@ -161,34 +181,99 @@ Deno.serve(async (req) => {
     rangeDays,
   })
 
-  // ---- call Gemini ----
-  // We pass the system prompt via systemInstruction (kept separate from the
-  // chat history so the model treats it as ground truth, not a turn).
+  // ---- call the LLM ----
+  try {
+    const result =
+      provider.name === 'openai'
+        ? await callOpenAI({ apiKey: provider.key, mode, systemPrompt, messages })
+        : await callGemini({ apiKey: provider.key, mode, systemPrompt, messages })
+
+    return jsonResponse({
+      reply: result.reply,
+      model: result.model,
+      mode,
+      finishReason: result.finishReason,
+      tokens: result.tokens,
+    })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'LLM call failed'
+    return jsonResponse({ error: msg }, 502)
+  }
+})
+
+// ---------- provider selection ----------
+
+function resolveProvider():
+  | { ok: true; name: Provider; key: string }
+  | { ok: false; error: string } {
+  const declared = (Deno.env.get('LLM_PROVIDER') ?? '').toLowerCase()
+  const geminiKey = Deno.env.get('GEMINI_API_KEY') ?? ''
+  const openaiKey = Deno.env.get('OPENAI_API_KEY') ?? ''
+
+  if (declared === 'openai') {
+    if (!openaiKey) {
+      return { ok: false, error: 'LLM_PROVIDER=openai but OPENAI_API_KEY is not set' }
+    }
+    return { ok: true, name: 'openai', key: openaiKey }
+  }
+  if (declared === 'gemini') {
+    if (!geminiKey) {
+      return { ok: false, error: 'LLM_PROVIDER=gemini but GEMINI_API_KEY is not set' }
+    }
+    return { ok: true, name: 'gemini', key: geminiKey }
+  }
+  // No explicit provider — auto-pick based on which key is set. Prefer
+  // openai if both are set, since the user has to pay for it and was likely
+  // intentional about adding the key.
+  if (openaiKey) return { ok: true, name: 'openai', key: openaiKey }
+  if (geminiKey) return { ok: true, name: 'gemini', key: geminiKey }
+  return {
+    ok: false,
+    error:
+      'no LLM key configured: set OPENAI_API_KEY or GEMINI_API_KEY as a Supabase secret',
+  }
+}
+
+// ---------- Gemini ----------
+
+interface ProviderArgs {
+  apiKey: string
+  mode: Mode
+  systemPrompt: string
+  messages: ChatMsg[]
+}
+
+async function callGemini({
+  apiKey,
+  mode,
+  systemPrompt,
+  messages,
+}: ProviderArgs): Promise<NormalizedReply> {
+  const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash'
+  const thinkingBudget = mode === 'deep' ? 1024 : 0
+
   const contents = messages.map((m) => ({
     role: m.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: m.content }],
   }))
 
-  const geminiUrl =
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent` +
-    `?key=${encodeURIComponent(geminiKey)}`
+  const url =
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent` +
+    `?key=${encodeURIComponent(apiKey)}`
 
-  const geminiBody = {
+  const reqBody = {
     systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
     contents,
     generationConfig: {
       temperature: 0.4,
       topP: 0.95,
       // Gemini 2.5 counts BOTH thinking + visible tokens against
-      // maxOutputTokens, so we keep generous headroom for the visible
-      // reply and bound thinking separately based on mode.
+      // maxOutputTokens, so keep generous headroom for the visible reply
+      // and bound thinking separately.
       maxOutputTokens: 8192,
       thinkingConfig: { thinkingBudget },
     },
     safetySettings: [
-      // Baby-data analysis can include words like "weight", "feeding",
-      // "blood", etc. Loosen the defaults so legitimate questions don't
-      // get blocked.
       { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
       { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
       { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
@@ -196,44 +281,111 @@ Deno.serve(async (req) => {
     ],
   }
 
-  const geminiResp = await fetch(geminiUrl, {
+  const resp = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(geminiBody),
+    body: JSON.stringify(reqBody),
   })
 
-  if (!geminiResp.ok) {
-    const errText = await geminiResp.text()
-    return jsonResponse(
-      { error: `Gemini API error (${geminiResp.status}): ${errText.slice(0, 500)}` },
-      502,
-    )
+  if (!resp.ok) {
+    const text = await resp.text()
+    throw new Error(`Gemini API error (${resp.status}): ${text.slice(0, 500)}`)
   }
-
-  const geminiData = await geminiResp.json()
-  const candidate = geminiData?.candidates?.[0]
-  const reply = candidate?.content?.parts?.map((p: any) => p?.text ?? '').join('') ?? ''
+  const data = await resp.json()
+  const candidate = data?.candidates?.[0]
+  const reply =
+    candidate?.content?.parts?.map((p: any) => p?.text ?? '').join('') ?? ''
   if (!reply) {
-    return jsonResponse(
-      { error: 'Gemini returned no content', detail: geminiData },
-      502,
-    )
+    throw new Error(`Gemini returned no content (finishReason=${candidate?.finishReason ?? 'unknown'})`)
   }
-
-  return jsonResponse({
+  return {
     reply,
-    model: GEMINI_MODEL,
-    mode,
+    model,
     finishReason: candidate?.finishReason ?? null,
     tokens: {
-      prompt: geminiData?.usageMetadata?.promptTokenCount ?? null,
-      // candidatesTokenCount is visible-reply tokens only; thinking is
-      // tracked separately under thoughtsTokenCount on Gemini 2.5.
-      output: geminiData?.usageMetadata?.candidatesTokenCount ?? null,
-      thinking: geminiData?.usageMetadata?.thoughtsTokenCount ?? null,
+      prompt: data?.usageMetadata?.promptTokenCount ?? null,
+      output: data?.usageMetadata?.candidatesTokenCount ?? null,
+      thinking: data?.usageMetadata?.thoughtsTokenCount ?? null,
     },
+  }
+}
+
+// ---------- OpenAI ----------
+
+// Models in OpenAI's "reasoning" family (o-series, gpt-5) reject
+// `temperature` and `max_tokens`, expect `max_completion_tokens`, and
+// accept `reasoning_effort`. Detect by name prefix so adding a new
+// reasoning model later doesn't require a code change.
+function isReasoningModel(model: string): boolean {
+  return /^(o[134]|gpt-5)/i.test(model)
+}
+
+async function callOpenAI({
+  apiKey,
+  mode,
+  systemPrompt,
+  messages,
+}: ProviderArgs): Promise<NormalizedReply> {
+  const fastModel = Deno.env.get('OPENAI_FAST_MODEL') ?? 'gpt-4o-mini'
+  const deepModel = Deno.env.get('OPENAI_DEEP_MODEL') ?? 'gpt-5-mini'
+  const model = mode === 'deep' ? deepModel : fastModel
+  const reasoning = isReasoningModel(model)
+
+  const chatMessages = [
+    { role: 'system', content: systemPrompt },
+    ...messages.map((m) => ({ role: m.role, content: m.content })),
+  ]
+
+  const reqBody: Record<string, unknown> = {
+    model,
+    messages: chatMessages,
+  }
+  if (reasoning) {
+    reqBody.max_completion_tokens = 8192
+    // 'low' on a reasoning model is roughly equivalent to Gemini's
+    // thinkingBudget=0 in spirit (cheap, lower latency); 'medium' is the
+    // sweet spot for analytical questions.
+    reqBody.reasoning_effort = mode === 'deep' ? 'medium' : 'low'
+  } else {
+    reqBody.temperature = 0.4
+    reqBody.max_tokens = 8192
+  }
+
+  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(reqBody),
   })
-})
+
+  if (!resp.ok) {
+    const text = await resp.text()
+    throw new Error(`OpenAI API error (${resp.status}): ${text.slice(0, 500)}`)
+  }
+  const data = await resp.json()
+  const choice = data?.choices?.[0]
+  const reply: string = choice?.message?.content ?? ''
+  if (!reply) {
+    throw new Error(`OpenAI returned no content (finish_reason=${choice?.finish_reason ?? 'unknown'})`)
+  }
+  // Normalize finish_reason to the upper-case convention the client uses
+  // ('STOP', 'LENGTH', 'CONTENT_FILTER', ...).
+  const finishReason: string | null = choice?.finish_reason
+    ? String(choice.finish_reason).toUpperCase()
+    : null
+  return {
+    reply,
+    model,
+    finishReason,
+    tokens: {
+      prompt: data?.usage?.prompt_tokens ?? null,
+      output: data?.usage?.completion_tokens ?? null,
+      thinking: data?.usage?.completion_tokens_details?.reasoning_tokens ?? null,
+    },
+  }
+}
 
 // ---------- helpers ----------
 
@@ -295,8 +447,6 @@ function buildSystemPrompt({
     supplements: supplements.length,
   }
 
-  // Compact, line-oriented serialization keeps Gemini fast and the token
-  // count low. Each row is one line of TSV-ish key=value pairs.
   const weightsSection = weights
     .map(
       (w) =>
