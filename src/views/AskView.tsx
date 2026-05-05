@@ -15,7 +15,9 @@ const RANGES: { id: Range; label: string; days: number }[] = [
   { id: '365d', label: '1 yr', days: 365 },
 ]
 
-const MODE_PREF_KEY = 'spt-ask-mode-v1'
+// Bump this whenever we want to reset everyone's saved preference to the
+// new default (currently 'fast').
+const MODE_PREF_KEY = 'spt-ask-mode-v2'
 
 const SUGGESTIONS: string[] = [
   'How is the weight trending vs the WHO 50th percentile?',
