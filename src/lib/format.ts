@@ -96,9 +96,13 @@ export function timeSince(iso: string): string {
   if (mins < 1) return 'just now'
   if (mins < 60) return `${mins}m ago`
   const hours = differenceInHours(now, then)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) {
+    const remMins = mins - hours * 60
+    return remMins > 0 ? `${hours}h ${remMins}m ago` : `${hours}h ago`
+  }
   const days = differenceInDays(now, then)
-  return `${days}d ago`
+  const remHours = hours - days * 24
+  return remHours > 0 ? `${days}d ${remHours}h ago` : `${days}d ago`
 }
 
 // Returns a value usable as the value of a <input type="datetime-local">.
