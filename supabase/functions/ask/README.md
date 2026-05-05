@@ -82,8 +82,8 @@ Each provider exposes its own model env vars; defaults are listed below.
 | env var               | default          | used for                |
 | --------------------- | ---------------- | ----------------------- |
 | `GEMINI_MODEL`        | `gemini-2.5-flash` | both fast + deep (thinking budget toggles) |
-| `OPENAI_FAST_MODEL`   | `gpt-4o-mini`    | OpenAI mode=fast         |
-| `OPENAI_DEEP_MODEL`   | `gpt-5-mini`     | OpenAI mode=deep (reasoning) |
+| `OPENAI_FAST_MODEL`   | `gpt-5.4-nano`   | OpenAI mode=fast (reasoning_effort=low)    |
+| `OPENAI_DEEP_MODEL`   | `gpt-5.5`        | OpenAI mode=deep (reasoning_effort=medium) |
 
 Examples:
 

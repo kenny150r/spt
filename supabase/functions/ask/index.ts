@@ -326,8 +326,8 @@ async function callOpenAI({
   systemPrompt,
   messages,
 }: ProviderArgs): Promise<NormalizedReply> {
-  const fastModel = Deno.env.get('OPENAI_FAST_MODEL') ?? 'gpt-4o-mini'
-  const deepModel = Deno.env.get('OPENAI_DEEP_MODEL') ?? 'gpt-5-mini'
+  const fastModel = Deno.env.get('OPENAI_FAST_MODEL') ?? 'gpt-5.4-nano'
+  const deepModel = Deno.env.get('OPENAI_DEEP_MODEL') ?? 'gpt-5.5'
   const model = mode === 'deep' ? deepModel : fastModel
   const reasoning = isReasoningModel(model)
 
