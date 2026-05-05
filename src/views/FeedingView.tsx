@@ -117,7 +117,6 @@ export function FeedingView({ baby }: { baby: Baby }) {
 
   // Today is the last bucket.
   const today = dailyData[dailyData.length - 1]
-  const last7 = dailyData.slice(-7)
 
   // Hour-of-day volume pattern: today vs the 7-day prior average, in 3-hour
   // bins. Volume = bottle mL + (breast minutes × baby.breast_ml_per_min).
@@ -198,8 +197,13 @@ export function FeedingView({ baby }: { baby: Baby }) {
     () => last24hEvents.filter((e) => e.type === 'breast'),
     [last24hEvents],
   )
+  // Averages span the currently-selected chart range so the summary cards
+  // and the bars below them stay in sync. We exclude today from the
+  // denominator since it's still in progress and would otherwise drag the
+  // average down for whichever metric hadn't accumulated yet.
   const avg = useMemo(() => {
-    const totals = last7.reduce(
+    const prior = dailyData.slice(0, -1)
+    const totals = prior.reduce(
       (acc, d) => {
         acc.feeds += d.bottleCount + d.breastCount
         acc.bottleMl += d.bottleMl
@@ -208,12 +212,14 @@ export function FeedingView({ baby }: { baby: Baby }) {
       },
       { feeds: 0, bottleMl: 0, breastMin: 0 },
     )
+    const n = Math.max(prior.length, 1)
     return {
-      feeds: totals.feeds / Math.max(last7.length, 1),
-      bottleMl: totals.bottleMl / Math.max(last7.length, 1),
-      breastMin: totals.breastMin / Math.max(last7.length, 1),
+      feeds: totals.feeds / n,
+      bottleMl: totals.bottleMl / n,
+      breastMin: totals.breastMin / n,
+      days: prior.length,
     }
-  }, [last7])
+  }, [dailyData])
 
   return (
     <div className="space-y-5">
@@ -221,17 +227,17 @@ export function FeedingView({ baby }: { baby: Baby }) {
         <SummaryCard
           label="Feeds today"
           value={today ? today.bottleCount + today.breastCount : 0}
-          sub={`avg ${avg.feeds.toFixed(1)}/d`}
+          sub={`${avg.feeds.toFixed(1)}/d · ${avg.days}d avg`}
         />
         <SummaryCard
           label="Bottle today"
           value={`${Math.round(today?.bottleMl ?? 0)} mL`}
-          sub={`avg ${Math.round(avg.bottleMl)} mL/d`}
+          sub={`${Math.round(avg.bottleMl)} mL/d · ${avg.days}d avg`}
         />
         <SummaryCard
           label="Breast today"
           value={`${Math.round(today?.breastMin ?? 0)} m`}
-          sub={`avg ${Math.round(avg.breastMin)} m/d`}
+          sub={`${Math.round(avg.breastMin)} m/d · ${avg.days}d avg`}
         />
       </section>
 

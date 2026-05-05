@@ -124,10 +124,12 @@ export function PumpingView({ baby }: { baby: Baby }) {
   }, [pumps, feeds, days, breastFactor])
 
   const today = dailyData[dailyData.length - 1]
-  const last7 = dailyData.slice(-7)
 
+  // Averages cover the selected chart range, excluding today (still in
+  // progress) so a half-finished day doesn't deflate the running average.
   const avg = useMemo(() => {
-    const totals = last7.reduce(
+    const prior = dailyData.slice(0, -1)
+    const totals = prior.reduce(
       (acc, d) => {
         acc.sessions += d.sessions
         acc.totalMl += d.totalMl
@@ -136,12 +138,14 @@ export function PumpingView({ baby }: { baby: Baby }) {
       },
       { sessions: 0, totalMl: 0, totalMin: 0 },
     )
+    const n = Math.max(prior.length, 1)
     return {
-      sessions: totals.sessions / Math.max(last7.length, 1),
-      totalMl: totals.totalMl / Math.max(last7.length, 1),
-      totalMin: totals.totalMin / Math.max(last7.length, 1),
+      sessions: totals.sessions / n,
+      totalMl: totals.totalMl / n,
+      totalMin: totals.totalMin / n,
+      days: prior.length,
     }
-  }, [last7])
+  }, [dailyData])
 
   // Past 24h timeline scatter
   const last24h = useMemo(() => {
@@ -170,17 +174,17 @@ export function PumpingView({ baby }: { baby: Baby }) {
         <SummaryCard
           label="Sessions today"
           value={today?.sessions ?? 0}
-          sub={`avg ${avg.sessions.toFixed(1)}/d`}
+          sub={`${avg.sessions.toFixed(1)}/d · ${avg.days}d avg`}
         />
         <SummaryCard
           label="Output today"
           value={`${Math.round(today?.totalMl ?? 0)} mL`}
-          sub={`avg ${Math.round(avg.totalMl)} mL/d`}
+          sub={`${Math.round(avg.totalMl)} mL/d · ${avg.days}d avg`}
         />
         <SummaryCard
           label="Time today"
           value={`${Math.round(today?.totalMin ?? 0)} m`}
-          sub={`avg ${Math.round(avg.totalMin)} m/d`}
+          sub={`${Math.round(avg.totalMin)} m/d · ${avg.days}d avg`}
         />
       </section>
 
