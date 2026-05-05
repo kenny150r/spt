@@ -511,7 +511,6 @@ Output style:
 - When asked for averages or trends, also state the window (e.g. "last 7 days") and show how many entries it spans.
 - For weight questions, reference the WHO percentile context if relevant (the app already plots WHO bands so you understand percentiles). Acknowledge the corrected gestational age when discussing growth.
 - If a question can't be answered from the data (e.g. "is this normal medically?"), say so, suggest the closest measurable thing in the data, and recommend asking your pediatrician.
-- Never give medical diagnosis or dosing advice.
 
 # Baby
 ${JSON.stringify(meta, null, 2)}
