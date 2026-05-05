@@ -251,3 +251,23 @@ function erf(x: number): number {
 export function zToPercentile(z: number): number {
   return 50 * (1 + erf(z / Math.SQRT2))
 }
+
+// ---------------------------------------------------------------------------
+// Typical infant weight gain by age (general pediatric reference, NOT medical
+// advice). Use the corrected age for preterm babies.
+// Derived from common AAP / WHO guidance summaries.
+// ---------------------------------------------------------------------------
+export function expectedGramsPerDay(
+  ageMonths: number,
+): { low: number; high: number } | null {
+  if (ageMonths < 0) {
+    // Pre-term equivalent (still in NICU-style catch-up phase).
+    return { low: 20, high: 30 }
+  }
+  if (ageMonths < 3) return { low: 20, high: 30 }
+  if (ageMonths < 6) return { low: 15, high: 20 }
+  if (ageMonths < 12) return { low: 10, high: 13 }
+  if (ageMonths < 24) return { low: 5, high: 8 }
+  if (ageMonths < 60) return { low: 3, high: 6 }
+  return null
+}

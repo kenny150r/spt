@@ -19,6 +19,7 @@ import {
   correctedAgeMonths,
   daysPreterm,
   DAYS_PER_MONTH,
+  expectedGramsPerDay,
   getReferencePercentiles,
   estimateZScore,
   weightAtZ,
@@ -32,10 +33,10 @@ type AgeMode = 'chronological' | 'corrected'
 type Zoom = '1mo' | '3mo' | '6mo' | '12mo' | 'full'
 
 const ZOOM_OPTIONS: { id: Zoom; label: string; max: number }[] = [
-  { id: '1mo', label: '1 mo', max: 1 },
-  { id: '3mo', label: '3 mo', max: 3 },
-  { id: '6mo', label: '6 mo', max: 6 },
-  { id: '12mo', label: '12 mo', max: 12 },
+  { id: '1mo', label: '1m', max: 1 },
+  { id: '3mo', label: '3m', max: 3 },
+  { id: '6mo', label: '6m', max: 6 },
+  { id: '12mo', label: '12m', max: 12 },
   { id: 'full', label: 'All', max: 36 },
 ]
 
@@ -46,7 +47,7 @@ export function GrowthView({ baby }: { baby: Baby }) {
   const [weights, setWeights] = useState<WeightEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [unit, setUnit] = useState<Unit>('lb')
-  const [zoom, setZoom] = useState<Zoom>('full')
+  const [zoom, setZoom] = useState<Zoom>('3mo')
   const [ageMode, setAgeMode] = useState<AgeMode>(
     isPreterm ? 'corrected' : 'chronological',
   )
@@ -224,7 +225,9 @@ export function GrowthView({ baby }: { baby: Baby }) {
     const zThen =
       ageThen >= 0 ? estimateZScore(baby.sex, ageThen, best.weight_kg) : null
 
-    return { days, deltaKg, gPerDay, zNow, zThen }
+    const expected = expectedGramsPerDay(ageNow)
+
+    return { days, deltaKg, gPerDay, zNow, zThen, expected }
   }, [latest, weights, baby, isPreterm])
 
   return (
@@ -297,9 +300,26 @@ export function GrowthView({ baby }: { baby: Baby }) {
                 <span>{formatOzDelta(weeklyDelta.deltaKg)}</span>
               </div>
               <div className="text-xs text-slate-500">
-                {(weeklyDelta.gPerDay >= 0 ? '+' : '') +
-                  weeklyDelta.gPerDay.toFixed(0)}{' '}
-                g/day average
+                <span
+                  className={
+                    weeklyDelta.expected
+                      ? weeklyDelta.gPerDay >= weeklyDelta.expected.low
+                        ? 'text-emerald-700 font-medium'
+                        : 'text-amber-700 font-medium'
+                      : ''
+                  }
+                >
+                  {(weeklyDelta.gPerDay >= 0 ? '+' : '') +
+                    weeklyDelta.gPerDay.toFixed(0)}{' '}
+                  g/day
+                </span>
+                {weeklyDelta.expected && (
+                  <span className="text-slate-400">
+                    {' '}· typical{' '}
+                    {weeklyDelta.expected.low}–{weeklyDelta.expected.high} g/day
+                    {isPreterm ? ' (corrected)' : ''}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -468,8 +488,9 @@ export function GrowthView({ baby }: { baby: Baby }) {
                 dataKey="actual"
                 name={baby.name}
                 stroke="#2563eb"
-                strokeWidth={2.5}
-                dot={{ r: 4, fill: '#2563eb' }}
+                strokeWidth={2}
+                dot={{ r: 2.5, fill: '#2563eb', strokeWidth: 0 }}
+                activeDot={{ r: 4 }}
                 connectNulls
               />
             </LineChart>

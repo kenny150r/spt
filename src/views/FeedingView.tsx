@@ -5,7 +5,9 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
   Legend,
+  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -29,6 +31,13 @@ interface DayBucket {
   breastCount: number
   bottleMl: number
   breastMin: number
+}
+
+interface HourBucket {
+  hour: number
+  label: string
+  todayFeeds: number
+  avgFeeds: number
 }
 
 export function FeedingView({ baby }: { baby: Baby }) {
@@ -84,6 +93,37 @@ export function FeedingView({ baby }: { baby: Baby }) {
   // Today is the last bucket.
   const today = dailyData[dailyData.length - 1]
   const last7 = dailyData.slice(-7)
+
+  // Hour-of-day pattern: today's feed count per hour vs the 7-day average per
+  // hour (excluding today). Useful for spotting cluster-feeding windows.
+  const hourlyData = useMemo<HourBucket[]>(() => {
+    const todayKey = format(new Date(), 'yyyy-MM-dd')
+    // Bucket all fetched feeds by date+hour.
+    const byDayHour = new Map<string, number[]>()
+    for (const f of feeds) {
+      const d = new Date(f.fed_at)
+      const k = format(d, 'yyyy-MM-dd')
+      if (!byDayHour.has(k)) byDayHour.set(k, new Array(24).fill(0))
+      byDayHour.get(k)![d.getHours()] += 1
+    }
+    const todayHours = byDayHour.get(todayKey) ?? new Array(24).fill(0)
+    const otherDays = Array.from(byDayHour.entries())
+      .filter(([k]) => k !== todayKey)
+      .slice(-7) // most recent 7 prior days within the fetched range
+    const avgHours = new Array(24).fill(0)
+    if (otherDays.length > 0) {
+      for (const [, hrs] of otherDays) {
+        for (let h = 0; h < 24; h++) avgHours[h] += hrs[h]
+      }
+      for (let h = 0; h < 24; h++) avgHours[h] /= otherDays.length
+    }
+    return Array.from({ length: 24 }, (_, h) => ({
+      hour: h,
+      label: formatHour(h),
+      todayFeeds: todayHours[h],
+      avgFeeds: +avgHours[h].toFixed(2),
+    }))
+  }, [feeds])
   const avg = useMemo(() => {
     const totals = last7.reduce(
       (acc, d) => {
@@ -119,6 +159,60 @@ export function FeedingView({ baby }: { baby: Baby }) {
           value={`${Math.round(today?.breastMin ?? 0)} m`}
           sub={`avg ${Math.round(avg.breastMin)} m/d`}
         />
+      </section>
+
+      <section>
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">
+          Hourly pattern · today vs 7-day avg
+        </h2>
+        <div className="card p-4">
+          <div className="h-[200px] -mx-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={hourlyData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
+                <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
+                <XAxis
+                  dataKey="hour"
+                  type="number"
+                  domain={[0, 23]}
+                  ticks={[0, 4, 8, 12, 16, 20]}
+                  tickFormatter={(v) => formatHour(Number(v))}
+                  tick={{ fontSize: 11 }}
+                  interval={0}
+                />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <Tooltip
+                  formatter={(v, n) => [
+                    typeof v === 'number' ? v.toFixed(v < 1 ? 2 : 1) : v,
+                    n,
+                  ]}
+                  labelFormatter={(l) => formatHour(Number(l))}
+                />
+                <Legend
+                  verticalAlign="top"
+                  wrapperStyle={{ fontSize: 11, paddingBottom: 4 }}
+                />
+                <Bar
+                  dataKey="todayFeeds"
+                  name="Today"
+                  fill="#2563eb"
+                  radius={[3, 3, 0, 0]}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="avgFeeds"
+                  name="7-day avg"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="text-[11px] text-slate-400 text-center mt-1">
+            Bars: feeds in each hour today. Line: typical count for that hour
+            over the past 7 days.
+          </p>
+        </div>
       </section>
 
       <section>
@@ -265,6 +359,13 @@ function SummaryCard({
       {sub && <div className="text-[11px] text-slate-400 mt-0.5">{sub}</div>}
     </div>
   )
+}
+
+function formatHour(h: number): string {
+  if (h === 0) return '12a'
+  if (h === 12) return '12p'
+  if (h < 12) return `${h}a`
+  return `${h - 12}p`
 }
 
 function ChartCard({ title, children }: { title: string; children: React.ReactElement }) {
