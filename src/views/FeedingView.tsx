@@ -9,12 +9,14 @@ import {
   Legend,
   Line,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
 import { listFeedsSince } from '../lib/api'
-import type { Baby, FeedEntry } from '../lib/types'
+import type { Baby, FeedEntry, FeedType } from '../lib/types'
 
 type Range = '7d' | '14d' | '30d'
 
@@ -138,6 +140,44 @@ export function FeedingView({ baby }: { baby: Baby }) {
       }
     })
   }, [feeds, breastFactor])
+
+  // Past-24h timeline: each feed plotted on a horizontal time axis. Visual
+  // encoding: hue = type (blue=bottle, amber=breast); dot size and opacity
+  // scale with volume so heavier feeds pop and gaps between feeds are easy
+  // to eyeball.
+  const last24hEvents = useMemo(() => {
+    const now = Date.now()
+    const cutoff = now - 24 * 3600 * 1000
+    const out: FeedEvent[] = []
+    for (const f of feeds) {
+      const t = new Date(f.fed_at).getTime()
+      if (t < cutoff || t > now) continue
+      const volumeMl =
+        f.type === 'bottle'
+          ? f.amount_ml ?? 0
+          : (f.duration_min ?? 0) * breastFactor
+      out.push({
+        id: f.id,
+        hoursAgo: (t - now) / (3600 * 1000), // negative
+        iso: f.fed_at,
+        type: f.type,
+        volumeMl,
+        amountMl: f.amount_ml,
+        durationMin: f.duration_min,
+        y: 0,
+      })
+    }
+    return out
+  }, [feeds, breastFactor])
+
+  const bottleEvents = useMemo(
+    () => last24hEvents.filter((e) => e.type === 'bottle'),
+    [last24hEvents],
+  )
+  const breastEvents = useMemo(
+    () => last24hEvents.filter((e) => e.type === 'breast'),
+    [last24hEvents],
+  )
   const avg = useMemo(() => {
     const totals = last7.reduce(
       (acc, d) => {
@@ -318,6 +358,74 @@ export function FeedingView({ baby }: { baby: Baby }) {
 
       <section>
         <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">
+          Past 24 hours · feed timeline
+        </h2>
+        <div className="card p-4">
+          <div className="h-[120px] -mx-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <ScatterChart margin={{ top: 16, right: 12, left: 4, bottom: 8 }}>
+                <CartesianGrid
+                  stroke="#eef2f7"
+                  strokeDasharray="3 3"
+                  horizontal={false}
+                />
+                <XAxis
+                  type="number"
+                  dataKey="hoursAgo"
+                  domain={[-24, 0]}
+                  ticks={[-24, -18, -12, -6, 0]}
+                  tickFormatter={(h) => formatTickFromHoursAgo(Number(h))}
+                  tick={{ fontSize: 11 }}
+                  allowDataOverflow
+                />
+                <YAxis
+                  type="number"
+                  dataKey="y"
+                  hide
+                  domain={[-1, 1]}
+                />
+                <Tooltip
+                  cursor={{ stroke: '#cbd5e1', strokeDasharray: '3 3' }}
+                  content={<FeedEventTooltip />}
+                />
+                <Legend
+                  verticalAlign="top"
+                  wrapperStyle={{ fontSize: 11, paddingBottom: 4 }}
+                />
+                <Scatter
+                  name="Bottle"
+                  data={bottleEvents}
+                  fill="#2563eb"
+                  shape={(props: object) => (
+                    <FeedDot {...(props as DotProps)} color="#2563eb" />
+                  )}
+                />
+                <Scatter
+                  name="Breast"
+                  data={breastEvents}
+                  fill="#f59e0b"
+                  shape={(props: object) => (
+                    <FeedDot {...(props as DotProps)} color="#f59e0b" />
+                  )}
+                />
+              </ScatterChart>
+            </ResponsiveContainer>
+          </div>
+          {last24hEvents.length === 0 ? (
+            <p className="text-[11px] text-slate-400 text-center mt-1">
+              No feeds in the past 24 hours.
+            </p>
+          ) : (
+            <p className="text-[11px] text-slate-400 text-center mt-1">
+              {last24hEvents.length} feed{last24hEvents.length === 1 ? '' : 's'}
+              {' · '}larger / darker = more volume
+            </p>
+          )}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">
           Daily breakdown
         </h2>
         <div className="card divide-y divide-slate-100">
@@ -385,6 +493,88 @@ function formatHour(h: number): string {
   if (h === 12) return '12p'
   if (h < 12) return `${h}a`
   return `${h - 12}p`
+}
+
+interface FeedEvent {
+  id: string
+  hoursAgo: number
+  iso: string
+  type: FeedType
+  volumeMl: number
+  amountMl: number | null
+  durationMin: number | null
+  y: number
+}
+
+interface DotProps {
+  cx?: number
+  cy?: number
+  payload?: FeedEvent
+}
+
+// Reference volume that maxes out the dot size & darkness. Around an upper-end
+// breast or bottle feed; anything bigger just clips to the max marker.
+const MAX_REF_ML = 120
+
+function FeedDot({ cx, cy, payload, color }: DotProps & { color: string }) {
+  if (cx == null || cy == null || !payload) return null
+  const v = Math.max(0, Math.min(payload.volumeMl, MAX_REF_ML))
+  const t = MAX_REF_ML > 0 ? v / MAX_REF_ML : 0
+  const r = 4 + t * 6 // 4 → 10 px
+  const fillOpacity = 0.35 + t * 0.6 // 0.35 → 0.95
+  return (
+    <circle
+      cx={cx}
+      cy={cy}
+      r={r}
+      fill={color}
+      fillOpacity={fillOpacity}
+      stroke={color}
+      strokeOpacity={0.9}
+      strokeWidth={0.75}
+    />
+  )
+}
+
+function FeedEventTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean
+  payload?: { payload?: FeedEvent }[]
+}) {
+  if (!active || !payload?.length) return null
+  const p = payload[0].payload
+  if (!p) return null
+  const when = new Date(p.iso)
+  const clock = format(when, 'h:mm a')
+  const ago = -p.hoursAgo
+  const agoLabel =
+    ago < 1
+      ? `${Math.round(ago * 60)}m ago`
+      : `${Math.floor(ago)}h ${Math.round((ago - Math.floor(ago)) * 60)}m ago`
+  return (
+    <div className="rounded-md bg-white shadow-md border border-slate-200 px-2.5 py-1.5 text-xs">
+      <div className="font-medium">
+        {p.type === 'bottle' ? 'Bottle' : 'Breast'} · {clock}
+      </div>
+      <div className="text-slate-500">{agoLabel}</div>
+      {p.type === 'bottle' && p.amountMl != null && (
+        <div className="text-slate-500">{Math.round(p.amountMl)} mL</div>
+      )}
+      {p.type === 'breast' && (
+        <div className="text-slate-500">
+          {p.durationMin ?? 0} min · ~{Math.round(p.volumeMl)} mL est.
+        </div>
+      )}
+    </div>
+  )
+}
+
+function formatTickFromHoursAgo(h: number): string {
+  if (h === 0) return 'now'
+  const t = new Date(Date.now() + h * 3600 * 1000)
+  return formatHour(t.getHours())
 }
 
 function ChartCard({ title, children }: { title: string; children: React.ReactElement }) {
