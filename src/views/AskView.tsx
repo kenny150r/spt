@@ -20,10 +20,6 @@ const RANGES: { id: Range; label: string; days: number }[] = [
 const MODE_PREF_KEY = 'spt-ask-mode-v2'
 
 const SUGGESTIONS: string[] = [
-  'How is the weight trending vs the WHO 50th percentile?',
-  "What's the average pump output the past week vs the week before?",
-  "Are there any unusually long gaps between feeds?",
-  'What was the longest stretch without a wet diaper?',
   'When are the cluster feeding times based on the past 14 days?',
   "Did we miss any vitamins or iron in the past 7 days?",
   'How has L vs R pump output asymmetry changed over time?',
@@ -238,15 +234,6 @@ export function AskView({ baby }: { baby: Baby }) {
             </button>
           </div>
         </div>
-        <p className="text-[11px] text-slate-400 mt-2 leading-snug">
-          Sends weights (all time) plus the last {days} days of feeds, pumps,
-          diapers, and supplements to your configured LLM provider via the
-          Supabase Edge Function. <strong className="font-medium">Fast</strong>{' '}
-          skips the reasoning step — try it first; switch to{' '}
-          <strong className="font-medium">Deep</strong> for trend / comparison
-          questions. Don't paste anything you wouldn't share with Google or
-          OpenAI.
-        </p>
       </section>
 
       <div
