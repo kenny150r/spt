@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import type { Baby } from '../lib/types'
 
 type Range = '14d' | '30d' | '60d' | '90d' | '365d'
+type Mode = 'fast' | 'deep'
 
 const RANGES: { id: Range; label: string; days: number }[] = [
   { id: '14d', label: '14 d', days: 14 },
@@ -13,6 +14,8 @@ const RANGES: { id: Range; label: string; days: number }[] = [
   { id: '90d', label: '90 d', days: 90 },
   { id: '365d', label: '1 yr', days: 365 },
 ]
+
+const MODE_PREF_KEY = 'spt-ask-mode-v1'
 
 const SUGGESTIONS: string[] = [
   'How is the weight trending vs the WHO 50th percentile?',
@@ -33,6 +36,7 @@ interface ChatMsg {
     tokensOut?: number | null
     tokensThinking?: number | null
     model?: string
+    mode?: Mode
     finishReason?: string | null
   }
 }
@@ -41,6 +45,7 @@ const STORAGE_KEY_PREFIX = 'spt-ask-history-v1:'
 
 export function AskView({ baby }: { baby: Baby }) {
   const [range, setRange] = useState<Range>('60d')
+  const [mode, setMode] = useState<Mode>(() => loadModePref())
   const [draft, setDraft] = useState('')
   const [messages, setMessages] = useState<ChatMsg[]>(() => loadHistory(baby.id))
   const [submitting, setSubmitting] = useState(false)
@@ -49,6 +54,16 @@ export function AskView({ baby }: { baby: Baby }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const days = RANGES.find((r) => r.id === range)!.days
+
+  // Persist the mode preference globally (not per-baby) — most folks pick
+  // one tradeoff and stick with it.
+  useEffect(() => {
+    try {
+      localStorage.setItem(MODE_PREF_KEY, mode)
+    } catch {
+      /* ignore */
+    }
+  }, [mode])
 
   // Persist conversation per-baby so a tab switch doesn't blow it away.
   useEffect(() => {
@@ -84,6 +99,7 @@ export function AskView({ baby }: { baby: Baby }) {
         body: {
           babyId: baby.id,
           rangeDays: days,
+          mode,
           // Only send role + content; the meta block is UI-only.
           messages: next.map((m) => ({ role: m.role, content: m.content })),
         },
@@ -95,6 +111,7 @@ export function AskView({ baby }: { baby: Baby }) {
         | {
             reply?: string
             model?: string
+            mode?: Mode
             finishReason?: string | null
             tokens?: { prompt?: number; output?: number; thinking?: number }
           }
@@ -110,6 +127,7 @@ export function AskView({ baby }: { baby: Baby }) {
           content: reply.reply,
           meta: {
             model: reply.model,
+            mode: reply.mode,
             tokensIn: reply.tokens?.prompt ?? null,
             tokensOut: reply.tokens?.output ?? null,
             tokensThinking: reply.tokens?.thinking ?? null,
@@ -163,8 +181,8 @@ export function AskView({ baby }: { baby: Baby }) {
             </button>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-slate-500 shrink-0">Window:</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] text-slate-500 shrink-0">Window</span>
           <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs">
             {RANGES.map((r) => (
               <button
@@ -181,11 +199,45 @@ export function AskView({ baby }: { baby: Baby }) {
               </button>
             ))}
           </div>
+          <span className="text-[11px] text-slate-500 shrink-0 ml-1">Mode</span>
+          <div
+            className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs"
+            role="tablist"
+            aria-label="Reasoning mode"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'fast'}
+              onClick={() => setMode('fast')}
+              className={`px-2.5 py-1 font-medium ${
+                mode === 'fast' ? 'bg-brand-600 text-white' : 'bg-white text-slate-600'
+              }`}
+              title="No reasoning step — instant, cheapest, great for simple lookups"
+            >
+              Fast
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'deep'}
+              onClick={() => setMode('deep')}
+              className={`px-2.5 py-1 font-medium ${
+                mode === 'deep' ? 'bg-brand-600 text-white' : 'bg-white text-slate-600'
+              }`}
+              title="Adds bounded reasoning — better for trends, comparisons, outlier hunting"
+            >
+              Deep
+            </button>
+          </div>
         </div>
         <p className="text-[11px] text-slate-400 mt-2 leading-snug">
           Sends weights (all time) plus the last {days} days of feeds, pumps,
           diapers, and supplements to Gemini through your Supabase Edge
-          Function. Don't paste anything you wouldn't share with Google.
+          Function. <strong className="font-medium">Fast</strong> skips the
+          reasoning step — try it first; switch to{' '}
+          <strong className="font-medium">Deep</strong> for trend / comparison
+          questions. Don't paste anything you wouldn't share with Google.
         </p>
       </section>
 
@@ -301,13 +353,25 @@ function Bubble({ msg }: { msg: ChatMsg }) {
         )}
         {!isUser && msg.meta?.tokensIn != null && (
           <div className="text-[10px] text-slate-400 mt-1">
-            {msg.meta.model} · {msg.meta.tokensIn} in · {msg.meta.tokensOut} out
+            {msg.meta.model}
+            {msg.meta.mode ? ` · ${msg.meta.mode}` : ''} · {msg.meta.tokensIn} in
+            · {msg.meta.tokensOut} out
             {msg.meta.tokensThinking ? ` · ${msg.meta.tokensThinking} thinking` : ''}
           </div>
         )}
       </div>
     </div>
   )
+}
+
+function loadModePref(): Mode {
+  if (typeof localStorage === 'undefined') return 'fast'
+  try {
+    const v = localStorage.getItem(MODE_PREF_KEY)
+    return v === 'deep' ? 'deep' : 'fast'
+  } catch {
+    return 'fast'
+  }
 }
 
 function loadHistory(babyId: string): ChatMsg[] {

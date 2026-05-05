@@ -75,7 +75,12 @@ Deno.serve(async (req) => {
   }
 
   // ---- request body ----
-  let body: { babyId?: string; rangeDays?: number; messages?: ChatMsg[] }
+  let body: {
+    babyId?: string
+    rangeDays?: number
+    messages?: ChatMsg[]
+    mode?: 'fast' | 'deep'
+  }
   try {
     body = await req.json()
   } catch {
@@ -85,6 +90,11 @@ Deno.serve(async (req) => {
   const babyId = body.babyId
   const rangeDays = clamp(body.rangeDays ?? DEFAULT_RANGE_DAYS, 7, MAX_RANGE_DAYS)
   const messages = Array.isArray(body.messages) ? body.messages : []
+  // Fast mode = thinking off (instant, near-zero quota cost; great for
+  // straightforward lookups). Deep mode = bounded thinking, better at
+  // multi-step reasoning and outlier hunting.
+  const mode: 'fast' | 'deep' = body.mode === 'deep' ? 'deep' : 'fast'
+  const thinkingBudget = mode === 'deep' ? 1024 : 0
   if (!babyId) return jsonResponse({ error: 'babyId required' }, 400)
   if (messages.length === 0) return jsonResponse({ error: 'messages required' }, 400)
 
@@ -170,11 +180,10 @@ Deno.serve(async (req) => {
       temperature: 0.4,
       topP: 0.95,
       // Gemini 2.5 counts BOTH thinking + visible tokens against
-      // maxOutputTokens, so we keep a generous headroom and cap thinking
-      // separately. Otherwise dynamic thinking can eat the whole budget on
-      // a complex question and the visible reply gets truncated mid-word.
+      // maxOutputTokens, so we keep generous headroom for the visible
+      // reply and bound thinking separately based on mode.
       maxOutputTokens: 8192,
-      thinkingConfig: { thinkingBudget: 1024 },
+      thinkingConfig: { thinkingBudget },
     },
     safetySettings: [
       // Baby-data analysis can include words like "weight", "feeding",
@@ -214,6 +223,7 @@ Deno.serve(async (req) => {
   return jsonResponse({
     reply,
     model: GEMINI_MODEL,
+    mode,
     finishReason: candidate?.finishReason ?? null,
     tokens: {
       prompt: geminiData?.usageMetadata?.promptTokenCount ?? null,
