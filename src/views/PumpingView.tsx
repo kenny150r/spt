@@ -274,6 +274,35 @@ export function PumpingView({ baby }: { baby: Baby }) {
                 />
               </BarChart>
             </ChartCard>
+
+            <ChartCard title="Time per day (min)" subtitle="Grey = breastfeed minutes">
+              <BarChart data={dailyData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
+                <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11 }} unit=" m" width={48} />
+                <Tooltip
+                  formatter={(v, n) => [`${Math.round(Number(v))} min`, n]}
+                  labelFormatter={(_l, payload) =>
+                    payload?.[0]?.payload?.dateISO ?? ''
+                  }
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar
+                  dataKey="totalMin"
+                  name="Pump"
+                  stackId="t"
+                  fill="#14b8a6"
+                  radius={[0, 0, 0, 0]}
+                />
+                <Bar
+                  dataKey="breastMin"
+                  name="Breast"
+                  stackId="t"
+                  fill="#cbd5e1"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ChartCard>
           </div>
         )}
       </section>
