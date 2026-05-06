@@ -1,25 +1,36 @@
 import { useState } from 'react'
-import { addFeed } from '../../lib/api'
+import { addFeed, updateFeed } from '../../lib/api'
 import { toDatetimeLocal } from '../../lib/format'
-import type { FeedSide, FeedType } from '../../lib/types'
+import type { FeedEntry, FeedSide, FeedType } from '../../lib/types'
 
 export function AddFeedForm({
   babyId,
+  entry,
   onSaved,
   onCancel,
 }: {
   babyId: string
+  // When provided, the form is in "edit" mode and will UPDATE this row
+  // instead of inserting a new one.
+  entry?: FeedEntry
   onSaved: () => void
   onCancel: () => void
 }) {
-  const [type, setType] = useState<FeedType>('bottle')
-  const [fedAt, setFedAt] = useState(toDatetimeLocal(new Date()))
-  const [amountMl, setAmountMl] = useState('')
-  const [durationMin, setDurationMin] = useState('')
-  const [side, setSide] = useState<FeedSide>('left')
-  const [iron, setIron] = useState(false)
-  const [multivitamin, setMultivitamin] = useState(false)
-  const [notes, setNotes] = useState('')
+  const isEdit = entry != null
+  const [type, setType] = useState<FeedType>(entry?.type ?? 'bottle')
+  const [fedAt, setFedAt] = useState(
+    entry ? toDatetimeLocal(new Date(entry.fed_at)) : toDatetimeLocal(new Date()),
+  )
+  const [amountMl, setAmountMl] = useState(
+    entry?.amount_ml != null ? String(entry.amount_ml) : '',
+  )
+  const [durationMin, setDurationMin] = useState(
+    entry?.duration_min != null ? String(entry.duration_min) : '',
+  )
+  const [side, setSide] = useState<FeedSide>(entry?.side ?? 'left')
+  const [iron, setIron] = useState<boolean>(entry?.iron ?? false)
+  const [multivitamin, setMultivitamin] = useState<boolean>(entry?.multivitamin ?? false)
+  const [notes, setNotes] = useState(entry?.notes ?? '')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string>('')
 
@@ -28,8 +39,7 @@ export function AddFeedForm({
     setSubmitting(true)
     setError('')
     try {
-      await addFeed({
-        baby_id: babyId,
+      const payload = {
         fed_at: new Date(fedAt).toISOString(),
         type,
         amount_ml: type === 'bottle' && amountMl ? Number(amountMl) : null,
@@ -38,7 +48,12 @@ export function AddFeedForm({
         iron,
         multivitamin,
         notes: notes.trim() || null,
-      })
+      }
+      if (isEdit && entry) {
+        await updateFeed(entry.id, payload)
+      } else {
+        await addFeed({ baby_id: babyId, ...payload })
+      }
       onSaved()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save feed')
@@ -167,7 +182,7 @@ export function AddFeedForm({
           Cancel
         </button>
         <button type="submit" disabled={submitting} className="btn-primary flex-1">
-          {submitting ? 'Saving…' : 'Save feed'}
+          {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Save feed'}
         </button>
       </div>
     </form>

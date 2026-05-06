@@ -1,22 +1,27 @@
 import { useState } from 'react'
-import { addDiaper } from '../../lib/api'
+import { addDiaper, updateDiaper } from '../../lib/api'
 import { toDatetimeLocal } from '../../lib/format'
-import type { DiaperType } from '../../lib/types'
+import type { DiaperEntry, DiaperType } from '../../lib/types'
 
 export function AddDiaperForm({
   babyId,
-  initialType,
+  entry,
+  initialType = 'pee',
   onSaved,
   onCancel,
 }: {
   babyId: string
-  initialType: DiaperType
+  entry?: DiaperEntry
+  initialType?: DiaperType
   onSaved: () => void
   onCancel: () => void
 }) {
-  const [type, setType] = useState<DiaperType>(initialType)
-  const [occurredAt, setOccurredAt] = useState(toDatetimeLocal(new Date()))
-  const [notes, setNotes] = useState('')
+  const isEdit = entry != null
+  const [type, setType] = useState<DiaperType>(entry?.type ?? initialType)
+  const [occurredAt, setOccurredAt] = useState(
+    entry ? toDatetimeLocal(new Date(entry.occurred_at)) : toDatetimeLocal(new Date()),
+  )
+  const [notes, setNotes] = useState(entry?.notes ?? '')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string>('')
 
@@ -25,12 +30,16 @@ export function AddDiaperForm({
     setSubmitting(true)
     setError('')
     try {
-      await addDiaper({
-        baby_id: babyId,
+      const payload = {
         occurred_at: new Date(occurredAt).toISOString(),
         type,
         notes: notes.trim() || null,
-      })
+      }
+      if (isEdit && entry) {
+        await updateDiaper(entry.id, payload)
+      } else {
+        await addDiaper({ baby_id: babyId, ...payload })
+      }
       onSaved()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save')
@@ -86,7 +95,7 @@ export function AddDiaperForm({
           Cancel
         </button>
         <button type="submit" disabled={submitting} className="btn-primary flex-1">
-          {submitting ? 'Saving…' : 'Save'}
+          {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Save'}
         </button>
       </div>
     </form>

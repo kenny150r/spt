@@ -1,25 +1,33 @@
 import { useState } from 'react'
-import { addSupplement } from '../../lib/api'
+import { addSupplement, updateSupplement } from '../../lib/api'
 import { toDatetimeLocal } from '../../lib/format'
+import type { SupplementEntry } from '../../lib/types'
 
 export function AddSupplementForm({
   babyId,
+  entry,
   givenToday,
   onSaved,
   onCancel,
 }: {
   babyId: string
+  entry?: SupplementEntry
   givenToday: { multivitamin: boolean; iron: boolean }
   onSaved: () => void
   onCancel: () => void
 }) {
+  const isEdit = entry != null
   // Pre-select whichever supplement is still pending today, so the most
   // common flow ("I just gave the one we hadn't done yet") is one tap +
-  // save.
-  const [multivitamin, setMultivitamin] = useState(!givenToday.multivitamin)
-  const [iron, setIron] = useState(!givenToday.iron)
-  const [givenAt, setGivenAt] = useState(toDatetimeLocal(new Date()))
-  const [notes, setNotes] = useState('')
+  // save. For edits, restore exactly what was saved.
+  const [multivitamin, setMultivitamin] = useState(
+    entry ? entry.multivitamin : !givenToday.multivitamin,
+  )
+  const [iron, setIron] = useState(entry ? entry.iron : !givenToday.iron)
+  const [givenAt, setGivenAt] = useState(
+    entry ? toDatetimeLocal(new Date(entry.given_at)) : toDatetimeLocal(new Date()),
+  )
+  const [notes, setNotes] = useState(entry?.notes ?? '')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
@@ -32,13 +40,17 @@ export function AddSupplementForm({
     setSubmitting(true)
     setError('')
     try {
-      await addSupplement({
-        baby_id: babyId,
+      const payload = {
         given_at: new Date(givenAt).toISOString(),
         multivitamin,
         iron,
         notes: notes.trim() || null,
-      })
+      }
+      if (isEdit && entry) {
+        await updateSupplement(entry.id, payload)
+      } else {
+        await addSupplement({ baby_id: babyId, ...payload })
+      }
       onSaved()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save')
@@ -96,7 +108,7 @@ export function AddSupplementForm({
           Cancel
         </button>
         <button type="submit" disabled={submitting} className="btn-primary flex-1">
-          {submitting ? 'Saving…' : 'Mark given'}
+          {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Mark given'}
         </button>
       </div>
     </form>

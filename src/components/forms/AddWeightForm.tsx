@@ -1,26 +1,38 @@
 import { useState } from 'react'
-import { addWeight } from '../../lib/api'
-import { lbOzToKg, toDatetimeLocal } from '../../lib/format'
+import { addWeight, updateWeight } from '../../lib/api'
+import { kgToLbOz, lbOzToKg, toDatetimeLocal } from '../../lib/format'
+import type { WeightEntry } from '../../lib/types'
 
 type Unit = 'kg' | 'lb'
 
 export function AddWeightForm({
   babyId,
+  entry,
   defaultUnit = 'lb',
   onSaved,
   onCancel,
 }: {
   babyId: string
+  entry?: WeightEntry
   defaultUnit?: Unit
   onSaved: () => void
   onCancel: () => void
 }) {
+  const isEdit = entry != null
+  // Pre-fill the unit-specific inputs from the existing weight when editing
+  // (so the parent can re-tap "Edit" multiple times without losing
+  // precision).
+  const seed = entry ? kgToLbOz(entry.weight_kg) : null
   const [unit, setUnit] = useState<Unit>(defaultUnit)
-  const [kg, setKg] = useState('')
-  const [lb, setLb] = useState('')
-  const [oz, setOz] = useState('')
-  const [measuredAt, setMeasuredAt] = useState(toDatetimeLocal(new Date()))
-  const [notes, setNotes] = useState('')
+  const [kg, setKg] = useState(entry ? entry.weight_kg.toFixed(3) : '')
+  const [lb, setLb] = useState(seed ? String(seed.lb) : '')
+  const [oz, setOz] = useState(seed ? String(seed.oz) : '')
+  const [measuredAt, setMeasuredAt] = useState(
+    entry
+      ? toDatetimeLocal(new Date(entry.measured_at))
+      : toDatetimeLocal(new Date()),
+  )
+  const [notes, setNotes] = useState(entry?.notes ?? '')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string>('')
 
@@ -40,12 +52,16 @@ export function AddWeightForm({
         setSubmitting(false)
         return
       }
-      await addWeight({
-        baby_id: babyId,
+      const payload = {
         measured_at: new Date(measuredAt).toISOString(),
         weight_kg: Number(weightKg.toFixed(3)),
         notes: notes.trim() || null,
-      })
+      }
+      if (isEdit && entry) {
+        await updateWeight(entry.id, payload)
+      } else {
+        await addWeight({ baby_id: babyId, ...payload })
+      }
       onSaved()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save weight')
@@ -158,7 +174,7 @@ export function AddWeightForm({
           Cancel
         </button>
         <button type="submit" disabled={submitting} className="btn-primary flex-1">
-          {submitting ? 'Saving…' : 'Save weight'}
+          {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Save weight'}
         </button>
       </div>
     </form>

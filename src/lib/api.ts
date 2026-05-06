@@ -94,6 +94,24 @@ export async function addWeight(input: {
   return data as WeightEntry
 }
 
+export async function updateWeight(
+  id: string,
+  patch: {
+    measured_at?: string
+    weight_kg?: number
+    notes?: string | null
+  },
+): Promise<WeightEntry> {
+  const { data, error } = await supabase
+    .from('weights')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data as WeightEntry
+}
+
 // ---- Feeds ----
 export async function listFeeds(
   babyId: string,
@@ -153,6 +171,29 @@ export async function addFeed(input: {
   return data as FeedEntry
 }
 
+export async function updateFeed(
+  id: string,
+  patch: {
+    fed_at?: string
+    type?: FeedType
+    amount_ml?: number | null
+    duration_min?: number | null
+    side?: FeedSide | null
+    iron?: boolean
+    multivitamin?: boolean
+    notes?: string | null
+  },
+): Promise<FeedEntry> {
+  const { data, error } = await supabase
+    .from('feeds')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data as FeedEntry
+}
+
 // ---- Diapers ----
 export async function listDiapers(
   babyId: string,
@@ -196,6 +237,24 @@ export async function addDiaper(input: {
       type: input.type,
       notes: input.notes ?? null,
     })
+    .select()
+    .single()
+  if (error) throw error
+  return data as DiaperEntry
+}
+
+export async function updateDiaper(
+  id: string,
+  patch: {
+    occurred_at?: string
+    type?: DiaperType
+    notes?: string | null
+  },
+): Promise<DiaperEntry> {
+  const { data, error } = await supabase
+    .from('diapers')
+    .update(patch)
+    .eq('id', id)
     .select()
     .single()
   if (error) throw error
@@ -259,6 +318,28 @@ export async function addPump(input: {
   return data as PumpEntry
 }
 
+export async function updatePump(
+  id: string,
+  patch: {
+    pumped_at?: string
+    side?: PumpSide
+    amount_ml?: number | null
+    left_ml?: number | null
+    right_ml?: number | null
+    duration_min?: number | null
+    notes?: string | null
+  },
+): Promise<PumpEntry> {
+  const { data, error } = await supabase
+    .from('pumps')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data as PumpEntry
+}
+
 // ---- Supplements ----
 export async function listSupplements(
   babyId: string,
@@ -304,6 +385,25 @@ export async function addSupplement(input: {
       iron: input.iron,
       notes: input.notes ?? null,
     })
+    .select()
+    .single()
+  if (error) throw error
+  return data as SupplementEntry
+}
+
+export async function updateSupplement(
+  id: string,
+  patch: {
+    given_at?: string
+    multivitamin?: boolean
+    iron?: boolean
+    notes?: string | null
+  },
+): Promise<SupplementEntry> {
+  const { data, error } = await supabase
+    .from('supplements')
+    .update(patch)
+    .eq('id', id)
     .select()
     .single()
   if (error) throw error

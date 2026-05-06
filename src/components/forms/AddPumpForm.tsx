@@ -1,24 +1,48 @@
 import { useState } from 'react'
-import { addPump } from '../../lib/api'
+import { addPump, updatePump } from '../../lib/api'
 import { toDatetimeLocal } from '../../lib/format'
-import type { PumpSide } from '../../lib/types'
+import type { PumpEntry, PumpSide } from '../../lib/types'
 
 export function AddPumpForm({
   babyId,
+  entry,
   onSaved,
   onCancel,
 }: {
   babyId: string
+  entry?: PumpEntry
   onSaved: () => void
   onCancel: () => void
 }) {
-  const [pumpedAt, setPumpedAt] = useState(toDatetimeLocal(new Date()))
-  const [side, setSide] = useState<PumpSide>('both')
-  const [leftMl, setLeftMl] = useState('')
-  const [rightMl, setRightMl] = useState('')
-  const [singleMl, setSingleMl] = useState('')
-  const [durationMin, setDurationMin] = useState('')
-  const [notes, setNotes] = useState('')
+  const isEdit = entry != null
+  const [pumpedAt, setPumpedAt] = useState(
+    entry ? toDatetimeLocal(new Date(entry.pumped_at)) : toDatetimeLocal(new Date()),
+  )
+  const [side, setSide] = useState<PumpSide>(entry?.side ?? 'both')
+  // For 'both' edits we prefer the per-side breakdown if present;
+  // otherwise fall back to splitting the total 50/50 like the importer
+  // historically did, so the user has reasonable starting numbers.
+  const [leftMl, setLeftMl] = useState(
+    entry?.left_ml != null
+      ? String(entry.left_ml)
+      : entry?.side === 'both' && entry.amount_ml != null
+        ? String(Math.round((entry.amount_ml / 2) * 10) / 10)
+        : '',
+  )
+  const [rightMl, setRightMl] = useState(
+    entry?.right_ml != null
+      ? String(entry.right_ml)
+      : entry?.side === 'both' && entry.amount_ml != null
+        ? String(Math.round((entry.amount_ml / 2) * 10) / 10)
+        : '',
+  )
+  const [singleMl, setSingleMl] = useState(
+    entry?.side !== 'both' && entry?.amount_ml != null ? String(entry.amount_ml) : '',
+  )
+  const [durationMin, setDurationMin] = useState(
+    entry?.duration_min != null ? String(entry.duration_min) : '',
+  )
+  const [notes, setNotes] = useState(entry?.notes ?? '')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
@@ -41,8 +65,7 @@ export function AddPumpForm({
       } else {
         amountMl = singleMl ? Number(singleMl) : null
       }
-      await addPump({
-        baby_id: babyId,
+      const payload = {
         pumped_at: new Date(pumpedAt).toISOString(),
         side,
         amount_ml: amountMl,
@@ -50,7 +73,12 @@ export function AddPumpForm({
         right_ml: rightVal,
         duration_min: durationMin ? Number(durationMin) : null,
         notes: notes.trim() || null,
-      })
+      }
+      if (isEdit && entry) {
+        await updatePump(entry.id, payload)
+      } else {
+        await addPump({ baby_id: babyId, ...payload })
+      }
       onSaved()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save pump')
@@ -173,7 +201,7 @@ export function AddPumpForm({
           Cancel
         </button>
         <button type="submit" disabled={submitting} className="btn-primary flex-1">
-          {submitting ? 'Saving…' : 'Save pump'}
+          {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Save pump'}
         </button>
       </div>
     </form>
