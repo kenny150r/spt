@@ -38,6 +38,8 @@ import type {
   WeightEntry,
 } from '../lib/types'
 import { formatDateTime, formatWeight, timeSince, timeSinceShort } from '../lib/format'
+import { diaperTypeLabel, useVocab } from '../lib/vocab'
+import type { DiaperVocab } from '../lib/vocab'
 
 type SheetState =
   | { kind: 'closed' }
@@ -52,6 +54,7 @@ type ViewMode = 'cards' | 'table'
 const PAGE_SIZE = 30
 
 export function LogView({ baby }: { baby: Baby }) {
+  const { diaper: vocab } = useVocab()
   const [sheet, setSheet] = useState<SheetState>({ kind: 'closed' })
   const [feeds, setFeeds] = useState<FeedEntry[]>([])
   const [diapers, setDiapers] = useState<DiaperEntry[]>([])
@@ -253,7 +256,7 @@ export function LogView({ baby }: { baby: Baby }) {
           />
           <BigButton
             label="Diaper"
-            sub="pee, poop, or both"
+            sub={`${vocab.peeLower}, ${vocab.poopLower}, or both`}
             color="bg-sky-50 text-sky-900 border-sky-100"
             icon={<Droplet className="h-5 w-5" />}
             onClick={() => setSheet({ kind: 'diaper' })}
@@ -464,7 +467,7 @@ interface RowVisuals {
   typeLabel: string
 }
 
-function rowVisuals(item: AnyEntry): RowVisuals {
+function rowVisuals(item: AnyEntry, vocab: DiaperVocab): RowVisuals {
   if (item.kind === 'feed') {
     const supps = [item.multivitamin && 'Vit', item.iron && 'Fe'].filter(Boolean) as string[]
     const suppStr = supps.length > 0 ? ` · +${supps.join('+')}` : ''
@@ -490,9 +493,14 @@ function rowVisuals(item: AnyEntry): RowVisuals {
       ) : (
         <Droplet className="h-4 w-4 text-emerald-700" />
       )
-    const title =
-      item.type === 'both' ? 'Pee + poop' : item.type[0].toUpperCase() + item.type.slice(1)
-    return { icon, title, time: item.occurred_at, typeLabel: 'Diaper' }
+    const baseLabel = diaperTypeLabel(item.type, vocab)
+    const sizeStr = item.size ? ` · ${item.size}` : ''
+    return {
+      icon,
+      title: `${baseLabel}${sizeStr}`,
+      time: item.occurred_at,
+      typeLabel: 'Diaper',
+    }
   }
   if (item.kind === 'pump') {
     const ml = item.amount_ml != null ? ` · ${Math.round(item.amount_ml)} ml` : ''
@@ -529,7 +537,10 @@ function rowVisuals(item: AnyEntry): RowVisuals {
 
 // Detail rows shown when an entry is expanded. Keep this exhaustive so the
 // expanded panel always reveals everything stored on the row.
-function entryDetails(item: AnyEntry): { label: string; value: string }[] {
+function entryDetails(
+  item: AnyEntry,
+  vocab: DiaperVocab,
+): { label: string; value: string }[] {
   const out: { label: string; value: string }[] = []
   if (item.kind === 'feed') {
     out.push({ label: 'Type', value: item.type === 'bottle' ? 'Bottle' : 'Breast' })
@@ -546,10 +557,8 @@ function entryDetails(item: AnyEntry): { label: string; value: string }[] {
       })
     }
   } else if (item.kind === 'diaper') {
-    out.push({
-      label: 'Type',
-      value: item.type === 'both' ? 'Pee + poop' : item.type[0].toUpperCase() + item.type.slice(1),
-    })
+    out.push({ label: 'Type', value: diaperTypeLabel(item.type, vocab) })
+    if (item.size) out.push({ label: 'Size', value: item.size })
   } else if (item.kind === 'pump') {
     out.push({ label: 'Side', value: item.side })
     if (item.amount_ml != null)
@@ -621,7 +630,8 @@ function ActivityRow({
   onEdit: () => void
   onDelete: () => void
 }) {
-  const v = rowVisuals(item)
+  const { diaper: vocab } = useVocab()
+  const v = rowVisuals(item, vocab)
   const notes = entryNotes(item)
 
   return (
@@ -672,8 +682,9 @@ function ExpandedDetails({
   onDelete: () => void
   notes: string | null
 }) {
-  const v = rowVisuals(item)
-  const details = entryDetails(item)
+  const { diaper: vocab } = useVocab()
+  const v = rowVisuals(item, vocab)
+  const details = entryDetails(item, vocab)
   return (
     <div className="px-4 pb-4 -mt-1 space-y-3 bg-slate-50/60">
       <div className="text-xs text-slate-500">
@@ -732,6 +743,7 @@ function TableList({
   onEdit: (item: AnyEntry) => void
   onDelete: (item: AnyEntry) => void
 }) {
+  const { diaper: vocab } = useVocab()
   return (
     <div className="card overflow-hidden">
       <div className="overflow-x-auto">
@@ -746,7 +758,7 @@ function TableList({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {items.map((item) => {
-              const v = rowVisuals(item)
+              const v = rowVisuals(item, vocab)
               const notes = entryNotes(item)
               const isExpanded = expandedId === item.id
               return (

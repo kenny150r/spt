@@ -17,6 +17,7 @@ import { AddDiaperForm } from '../components/forms/AddDiaperForm'
 import { listDiapersSince } from '../lib/api'
 import type { Baby, DiaperEntry, DiaperType } from '../lib/types'
 import { timeSinceShort } from '../lib/format'
+import { useVocab } from '../lib/vocab'
 
 type Range = '7d' | '14d' | '30d'
 
@@ -41,6 +42,7 @@ interface DayBucket {
 }
 
 export function DiapersView({ baby }: { baby: Baby }) {
+  const { diaper: vocab } = useVocab()
   const [range, setRange] = useState<Range>('14d')
   const [diapers, setDiapers] = useState<DiaperEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -192,7 +194,7 @@ export function DiapersView({ baby }: { baby: Baby }) {
             className="btn-secondary"
           >
             <Plus className="h-4 w-4" />
-            Pee
+            {vocab.pee}
           </button>
           <button
             type="button"
@@ -200,7 +202,7 @@ export function DiapersView({ baby }: { baby: Baby }) {
             className="btn-primary"
           >
             <Plus className="h-4 w-4" />
-            Poop
+            {vocab.poop}
           </button>
         </div>
       </section>
@@ -271,8 +273,8 @@ export function DiapersView({ baby }: { baby: Baby }) {
                   }
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="pee" name="Pee" stackId="d" fill="#0ea5e9" />
-                <Bar dataKey="poop" name="Poop" stackId="d" fill="#10b981" />
+                <Bar dataKey="pee" name={vocab.pee} stackId="d" fill="#0ea5e9" />
+                <Bar dataKey="poop" name={vocab.poop} stackId="d" fill="#10b981" />
                 <Bar dataKey="both" name="Both" stackId="d" fill="#f59e0b" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ChartCard>

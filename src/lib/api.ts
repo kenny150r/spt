@@ -2,6 +2,7 @@ import { supabase } from './supabase'
 import type {
   Baby,
   DiaperEntry,
+  DiaperSize,
   DiaperType,
   FeedEntry,
   FeedSide,
@@ -227,6 +228,7 @@ export async function addDiaper(input: {
   baby_id: string
   occurred_at: string
   type: DiaperType
+  size?: DiaperSize | null
   notes?: string | null
 }): Promise<DiaperEntry> {
   const { data, error } = await supabase
@@ -235,6 +237,7 @@ export async function addDiaper(input: {
       baby_id: input.baby_id,
       occurred_at: input.occurred_at,
       type: input.type,
+      size: input.size ?? null,
       notes: input.notes ?? null,
     })
     .select()
@@ -248,6 +251,7 @@ export async function updateDiaper(
   patch: {
     occurred_at?: string
     type?: DiaperType
+    size?: DiaperSize | null
     notes?: string | null
   },
 ): Promise<DiaperEntry> {

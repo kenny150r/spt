@@ -40,12 +40,17 @@ export interface FeedEntry {
 }
 
 export type DiaperType = 'pee' | 'poop' | 'both'
+export type DiaperSize = 'small' | 'medium' | 'large'
 
 export interface DiaperEntry {
   id: string
   baby_id: string
   occurred_at: string
   type: DiaperType
+  // Stool size; only meaningful when type is 'poop' or 'both'. Null
+  // otherwise (and for older entries logged before size tracking
+  // existed).
+  size: DiaperSize | null
   notes: string | null
   created_at: string
 }

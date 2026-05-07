@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { updateBaby } from '../lib/api'
 import { toDateInput } from '../lib/format'
 import type { Baby, Sex } from '../lib/types'
+import { useVocab } from '../lib/vocab'
+import type { VocabMode } from '../lib/vocab'
 
 export function SettingsView({
   baby,
@@ -180,6 +182,8 @@ export function SettingsView({
         </form>
       </section>
 
+      <VocabularyCard />
+
       <section className="card p-5 text-sm text-slate-600 space-y-2">
         <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-1">
           About
@@ -195,5 +199,54 @@ export function SettingsView({
         </p>
       </section>
     </div>
+  )
+}
+
+const VOCAB_OPTIONS: { id: VocabMode; label: string; sample: string }[] = [
+  { id: 'casual', label: 'Casual', sample: 'peepies / poopies' },
+  { id: 'sophisticated', label: 'Sophisticated', sample: 'urine / stool' },
+]
+
+// Per-device pref (stored in localStorage), so different folks in the
+// household can pick whichever feels right on their phone.
+function VocabularyCard() {
+  const { mode, setMode } = useVocab()
+  return (
+    <section className="card p-5">
+      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-1">
+        Vocabulary
+      </h2>
+      <p className="text-xs text-slate-500 mb-3">
+        Choose which words the app uses for diaper contents. Saved on this
+        device.
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        {VOCAB_OPTIONS.map((opt) => (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => setMode(opt.id)}
+            aria-pressed={mode === opt.id}
+            className={`p-3 rounded-2xl border text-left active:scale-[0.99] transition-transform ${
+              mode === opt.id
+                ? 'bg-brand-600 text-white border-brand-600'
+                : 'bg-white border-slate-200 text-slate-700'
+            }`}
+          >
+            <div className="text-sm font-semibold leading-tight">
+              {mode === opt.id ? '✓ ' : ''}
+              {opt.label}
+            </div>
+            <div
+              className={`text-[11px] mt-0.5 ${
+                mode === opt.id ? 'opacity-90' : 'text-slate-500'
+              }`}
+            >
+              {opt.sample}
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
   )
 }

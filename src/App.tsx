@@ -15,6 +15,7 @@ import { GrowthView } from './views/GrowthView'
 import { AskView } from './views/AskView'
 import { SettingsView } from './views/SettingsView'
 import { MissingConfig } from './components/MissingConfig'
+import { VocabProvider } from './lib/vocab'
 
 function App() {
   const [bootstrapped, setBootstrapped] = useState(false)
@@ -63,15 +64,17 @@ function App() {
   if (!baby) return <SetupBaby onCreated={setBaby} />
 
   return (
-    <Layout baby={baby} view={view} onChangeView={setView}>
-      {view === 'log' && <LogView baby={baby} />}
-      {view === 'feeding' && <FeedingView baby={baby} />}
-      {view === 'pumping' && <PumpingView baby={baby} />}
-      {view === 'diapers' && <DiapersView baby={baby} />}
-      {view === 'growth' && <GrowthView baby={baby} />}
-      {view === 'ask' && <AskView baby={baby} />}
-      {view === 'settings' && <SettingsView baby={baby} onUpdated={setBaby} />}
-    </Layout>
+    <VocabProvider>
+      <Layout baby={baby} view={view} onChangeView={setView}>
+        {view === 'log' && <LogView baby={baby} />}
+        {view === 'feeding' && <FeedingView baby={baby} />}
+        {view === 'pumping' && <PumpingView baby={baby} />}
+        {view === 'diapers' && <DiapersView baby={baby} />}
+        {view === 'growth' && <GrowthView baby={baby} />}
+        {view === 'ask' && <AskView baby={baby} />}
+        {view === 'settings' && <SettingsView baby={baby} onUpdated={setBaby} />}
+      </Layout>
+    </VocabProvider>
   )
 }
 

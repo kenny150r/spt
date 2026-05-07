@@ -83,11 +83,26 @@ create table if not exists public.diapers (
   baby_id      uuid not null references public.babies(id) on delete cascade,
   occurred_at  timestamptz not null default now(),
   type         text not null check (type in ('pee', 'poop', 'both')),
+  -- Optional stool size; only meaningful for type in ('poop', 'both').
+  size         text check (size is null or size in ('small', 'medium', 'large')),
   notes        text,
   created_at   timestamptz not null default now()
 );
 create index if not exists diapers_baby_occurred_at_idx
   on public.diapers (baby_id, occurred_at desc);
+
+-- Idempotent: add size column + check constraint for installs that ran the
+-- older diapers schema.
+alter table public.diapers
+  add column if not exists size text;
+do $$ begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'diapers_size_chk'
+  ) then
+    alter table public.diapers add constraint diapers_size_chk
+      check (size is null or size in ('small', 'medium', 'large'));
+  end if;
+end $$;
 
 create table if not exists public.pumps (
   id            uuid primary key default gen_random_uuid(),

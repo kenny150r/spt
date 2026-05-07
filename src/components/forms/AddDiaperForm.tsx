@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { addDiaper, updateDiaper } from '../../lib/api'
 import { toDatetimeLocal } from '../../lib/format'
-import type { DiaperEntry, DiaperType } from '../../lib/types'
+import type { DiaperEntry, DiaperSize, DiaperType } from '../../lib/types'
+import { useVocab } from '../../lib/vocab'
+
+const SIZES: DiaperSize[] = ['small', 'medium', 'large']
 
 export function AddDiaperForm({
   babyId,
@@ -17,13 +20,19 @@ export function AddDiaperForm({
   onCancel: () => void
 }) {
   const isEdit = entry != null
+  const { diaper: vocab } = useVocab()
   const [type, setType] = useState<DiaperType>(entry?.type ?? initialType)
+  const [size, setSize] = useState<DiaperSize | null>(entry?.size ?? null)
   const [occurredAt, setOccurredAt] = useState(
     entry ? toDatetimeLocal(new Date(entry.occurred_at)) : toDatetimeLocal(new Date()),
   )
   const [notes, setNotes] = useState(entry?.notes ?? '')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string>('')
+
+  // Size only applies to entries that contain stool. If the user flips
+  // back to a pee-only entry, drop the size silently on save.
+  const sizeApplies = type === 'poop' || type === 'both'
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -33,6 +42,7 @@ export function AddDiaperForm({
       const payload = {
         occurred_at: new Date(occurredAt).toISOString(),
         type,
+        size: sizeApplies ? size : null,
         notes: notes.trim() || null,
       }
       if (isEdit && entry) {
@@ -45,6 +55,12 @@ export function AddDiaperForm({
       setError(err instanceof Error ? err.message : 'Failed to save')
       setSubmitting(false)
     }
+  }
+
+  const typeLabels: Record<DiaperType, string> = {
+    pee: vocab.pee,
+    poop: vocab.poop,
+    both: 'Both',
   }
 
   return (
@@ -61,13 +77,40 @@ export function AddDiaperForm({
                 type === t
                   ? 'bg-brand-600 text-white'
                   : 'bg-white border border-slate-200 text-slate-700'
-              } capitalize`}
+              }`}
             >
-              {t}
+              {typeLabels[t]}
             </button>
           ))}
         </div>
       </div>
+
+      {sizeApplies && (
+        <div>
+          <label className="label">Size</label>
+          <div className="grid grid-cols-3 gap-2">
+            {SIZES.map((s) => (
+              <button
+                type="button"
+                key={s}
+                onClick={() => setSize((cur) => (cur === s ? null : s))}
+                aria-pressed={size === s}
+                className={`btn ${
+                  size === s
+                    ? 'bg-brand-600 text-white'
+                    : 'bg-white border border-slate-200 text-slate-700'
+                } capitalize`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-slate-500 mt-1.5">
+            Optional. Tap a selected size again to clear it.
+          </p>
+        </div>
+      )}
+
       <div>
         <label className="label" htmlFor="occurred_at">Time</label>
         <input
