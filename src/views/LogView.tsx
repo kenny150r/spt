@@ -53,6 +53,14 @@ type ViewMode = 'cards' | 'table'
 
 const PAGE_SIZE = 30
 
+// "Last X" cards flash a soft amber pulse once the entry is older than
+// this many hours, giving a glanceable nudge that something's overdue.
+// Weight intentionally has no threshold — those are checked daily at
+// most, so pulsing them would be noise.
+const STALE_HOURS_FEED = 3
+const STALE_HOURS_DIAPER = 3
+const STALE_HOURS_PUMP = 3
+
 export function LogView({ baby }: { baby: Baby }) {
   const { diaper: vocab } = useVocab()
   const [sheet, setSheet] = useState<SheetState>({ kind: 'closed' })
@@ -78,6 +86,16 @@ export function LogView({ baby }: { baby: Baby }) {
       /* ignore quota / private mode */
     }
   }, [viewMode])
+
+  // Tick once a minute so the "Last X · Yh Zm ago" labels and the
+  // stale-pulse threshold keep advancing without needing a reload.
+  // Cheap re-render: only the small summary cards above care about the
+  // minute, but React reconciles the rest with no real work.
+  const [, setMinuteTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setMinuteTick((t) => t + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
 
   const reload = useCallback(
     async (limit: number) => {
@@ -230,16 +248,22 @@ export function LogView({ baby }: { baby: Baby }) {
           label="Last feed"
           value={lastFeed ? timeSinceShort(lastFeed.fed_at) : '—'}
           icon={<Utensils className="h-4 w-4" />}
+          at={lastFeed?.fed_at}
+          staleAfterHours={STALE_HOURS_FEED}
         />
         <SummaryCard
           label="Last diaper"
           value={lastDiaper ? timeSinceShort(lastDiaper.occurred_at) : '—'}
           icon={<Droplet className="h-4 w-4" />}
+          at={lastDiaper?.occurred_at}
+          staleAfterHours={STALE_HOURS_DIAPER}
         />
         <SummaryCard
           label="Last pump"
           value={lastPump ? timeSinceShort(lastPump.pumped_at) : '—'}
           icon={<Wind className="h-4 w-4" />}
+          at={lastPump?.pumped_at}
+          staleAfterHours={STALE_HOURS_PUMP}
         />
         <SummaryCard
           label="Last weight"
@@ -885,18 +909,66 @@ function SummaryCard({
   label,
   value,
   icon,
+  at,
+  staleAfterHours,
 }: {
   label: string
   value: string
   icon: React.ReactNode
+  /** ISO timestamp of the underlying event; required for stale check. */
+  at?: string | null
+  /** When set, the card pulses subtly once `at` is older than this. */
+  staleAfterHours?: number
 }) {
+  const stale =
+    at != null &&
+    staleAfterHours != null &&
+    (Date.now() - new Date(at).getTime()) / (3600 * 1000) >= staleAfterHours
+
   return (
-    <div className="card p-3">
-      <div className="text-xs text-slate-500 flex items-center gap-1.5 dark:text-slate-400">
-        {icon}
-        <span className="truncate">{label}</span>
+    <div
+      className={`card p-3 ${
+        stale
+          ? 'border-amber-200 bg-amber-50/50 dark:border-amber-800/40 dark:bg-amber-900/20'
+          : ''
+      }`}
+    >
+      <div className="text-xs flex items-center gap-1.5">
+        <span
+          className={
+            stale ? 'text-amber-700 dark:text-amber-300' : 'text-slate-500 dark:text-slate-400'
+          }
+        >
+          {icon}
+        </span>
+        <span
+          className={`truncate ${
+            stale ? 'text-amber-700 dark:text-amber-300' : 'text-slate-500 dark:text-slate-400'
+          }`}
+        >
+          {label}
+        </span>
+        {stale && (
+          // Two-layer ping: the outer ring pulses while the inner dot
+          // stays solid, giving a subtle "live indicator" feel without
+          // the whole card blinking.
+          <span
+            className="relative flex h-2 w-2 ml-auto shrink-0"
+            aria-label={`Overdue (${staleAfterHours}h+)`}
+            title={`No entry in over ${staleAfterHours}h`}
+          >
+            <span className="absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75 animate-ping" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+          </span>
+        )}
       </div>
-      <div className="text-base font-semibold mt-1 truncate">{value}</div>
+      <div
+        className={`text-base font-semibold mt-1 truncate ${
+          stale ? 'text-amber-900 dark:text-amber-200' : ''
+        }`}
+      >
+        {value}
+      </div>
     </div>
   )
 }
