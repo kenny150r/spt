@@ -13,7 +13,7 @@ import {
   Utensils,
   Wind,
 } from 'lucide-react'
-import { format, startOfDay, subDays } from 'date-fns'
+import { format } from 'date-fns'
 import { Sheet } from '../components/Sheet'
 import { AddFeedForm } from '../components/forms/AddFeedForm'
 import { AddDiaperForm } from '../components/forms/AddDiaperForm'
@@ -23,9 +23,7 @@ import { AddSupplementForm } from '../components/forms/AddSupplementForm'
 import {
   deleteEntry,
   listDiapers,
-  listDiapersSince,
   listFeeds,
-  listFeedsSince,
   listPumps,
   listSupplements,
   listWeights,
@@ -55,13 +53,6 @@ type ViewMode = 'cards' | 'table'
 
 const PAGE_SIZE = 30
 
-// "Today" card config. The card answers the question "did we hit
-// today's targets?" — anchored to the rolling 7-day baseline so it
-// adapts as the baby's appetite/pattern changes over time.
-const TODAY_WINDOW_DAYS = 8 // today + 7 prior, for a 7-day average
-const WET_TARGET_PER_DAY = 6 // pediatric rule of thumb past the first week
-const DEFAULT_BREAST_ML_PER_MIN = 20
-
 export function LogView({ baby }: { baby: Baby }) {
   const { diaper: vocab } = useVocab()
   const [sheet, setSheet] = useState<SheetState>({ kind: 'closed' })
@@ -70,11 +61,6 @@ export function LogView({ baby }: { baby: Baby }) {
   const [weights, setWeights] = useState<WeightEntry[]>([])
   const [pumps, setPumps] = useState<PumpEntry[]>([])
   const [supplements, setSupplements] = useState<SupplementEntry[]>([])
-  // Separate "last 8 days" pulls dedicated to the Today card. Kept apart
-  // from the paginated activity feed above so growing the activity
-  // limit doesn't affect today's totals and vice versa.
-  const [recentFeeds, setRecentFeeds] = useState<FeedEntry[]>([])
-  const [recentDiapers, setRecentDiapers] = useState<DiaperEntry[]>([])
   const [loading, setLoading] = useState(true)
   // We grow this in `PAGE_SIZE` increments via "See more". Each bump
   // refetches with bigger LIMITs, then the merged list is sliced down to
@@ -95,25 +81,18 @@ export function LogView({ baby }: { baby: Baby }) {
 
   const reload = useCallback(
     async (limit: number) => {
-      const since = startOfDay(
-        subDays(new Date(), TODAY_WINDOW_DAYS - 1),
-      ).toISOString()
-      const [f, d, w, p, s, rf, rd] = await Promise.all([
+      const [f, d, w, p, s] = await Promise.all([
         listFeeds(baby.id, limit),
         listDiapers(baby.id, limit),
         listWeights(baby.id),
         listPumps(baby.id, limit),
         listSupplements(baby.id, limit),
-        listFeedsSince(baby.id, since),
-        listDiapersSince(baby.id, since),
       ])
       setFeeds(f)
       setDiapers(d)
       setWeights(w.slice().reverse())
       setPumps(p)
       setSupplements(s)
-      setRecentFeeds(rf)
-      setRecentDiapers(rd)
       setLoading(false)
     },
     [baby.id],
@@ -148,73 +127,6 @@ export function LogView({ baby }: { baby: Baby }) {
   const lastDiaper = diapers[0]
   const lastWeight = weights[0]
   const lastPump = pumps[0]
-
-  // Today vs 7-day rolling average. Powers the Today card up top.
-  // Uses the dedicated `recent*` pulls so it's accurate regardless of
-  // how far you've paginated the activity feed.
-  const todayStats = useMemo(() => {
-    const breastFactor = baby.breast_ml_per_min ?? DEFAULT_BREAST_ML_PER_MIN
-
-    // Build per-day buckets for the trailing TODAY_WINDOW_DAYS days.
-    const buckets = new Map<
-      string,
-      { feeds: number; volumeMl: number; wet: number; dirty: number }
-    >()
-    for (let i = TODAY_WINDOW_DAYS - 1; i >= 0; i--) {
-      const d = startOfDay(subDays(new Date(), i))
-      buckets.set(format(d, 'yyyy-MM-dd'), {
-        feeds: 0,
-        volumeMl: 0,
-        wet: 0,
-        dirty: 0,
-      })
-    }
-    for (const f of recentFeeds) {
-      const key = format(new Date(f.fed_at), 'yyyy-MM-dd')
-      const b = buckets.get(key)
-      if (!b) continue
-      b.feeds += 1
-      if (f.type === 'bottle') {
-        b.volumeMl += f.amount_ml ?? 0
-      } else if (f.type === 'breast') {
-        b.volumeMl += (f.duration_min ?? 0) * breastFactor
-      }
-    }
-    for (const d of recentDiapers) {
-      const key = format(new Date(d.occurred_at), 'yyyy-MM-dd')
-      const b = buckets.get(key)
-      if (!b) continue
-      if (d.type === 'pee' || d.type === 'both') b.wet += 1
-      if (d.type === 'poop' || d.type === 'both') b.dirty += 1
-    }
-
-    const todayKey = format(new Date(), 'yyyy-MM-dd')
-    const today = buckets.get(todayKey) ?? {
-      feeds: 0,
-      volumeMl: 0,
-      wet: 0,
-      dirty: 0,
-    }
-
-    // Average over the 7 days prior to today only (exclude today, since
-    // it's still in progress and would drag the baseline down).
-    const prior = Array.from(buckets.entries())
-      .filter(([k]) => k !== todayKey)
-      .map(([, v]) => v)
-    const n = Math.max(prior.length, 1)
-    const avg = prior.reduce(
-      (acc, b) => {
-        acc.feeds += b.feeds / n
-        acc.volumeMl += b.volumeMl / n
-        acc.wet += b.wet / n
-        acc.dirty += b.dirty / n
-        return acc
-      },
-      { feeds: 0, volumeMl: 0, wet: 0, dirty: 0 },
-    )
-
-    return { today, avg, days: prior.length }
-  }, [recentFeeds, recentDiapers, baby.breast_ml_per_min])
 
   // Today's once-daily supplement status. Reads primarily from the dedicated
   // supplements table, but also folds in feeds.iron / feeds.multivitamin so
@@ -313,13 +225,6 @@ export function LogView({ baby }: { baby: Baby }) {
 
   return (
     <div className="space-y-5">
-      <TodaySection
-        today={todayStats.today}
-        avg={todayStats.avg}
-        avgDays={todayStats.days}
-        loading={loading}
-      />
-
       <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <SummaryCard
           label="Last feed"
@@ -973,134 +878,6 @@ function ViewToggleButton({
       {icon}
       {label}
     </button>
-  )
-}
-
-// "Today" summary: today's totals vs. the trailing 7-day average.
-// Renders four compact stat cells (feeds, volume in, wet, dirty). Each
-// shows today's number, the 7d avg for context, and a small arrow when
-// today is notably above/below the baseline. The wet cell turns amber
-// when below the pediatric WET_TARGET_PER_DAY, after enough of the day
-// has passed for the comparison to be meaningful.
-function TodaySection({
-  today,
-  avg,
-  avgDays,
-  loading,
-}: {
-  today: { feeds: number; volumeMl: number; wet: number; dirty: number }
-  avg: { feeds: number; volumeMl: number; wet: number; dirty: number }
-  avgDays: number
-  loading: boolean
-}) {
-  const now = new Date()
-  // Wet-target warning only fires after early afternoon so a slow
-  // morning doesn't constantly flash amber.
-  const lateInDay = now.getHours() >= 14
-  const wetTone =
-    lateInDay && today.wet > 0 && today.wet < WET_TARGET_PER_DAY
-      ? 'amber'
-      : 'default'
-
-  const heading = format(now, 'EEE, MMM d')
-  return (
-    <section>
-      <div className="flex items-baseline justify-between mb-2">
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide dark:text-slate-400">
-          Today
-        </h2>
-        <span className="text-[11px] text-slate-400 dark:text-slate-500">
-          {heading}
-          {avgDays > 0 ? ` · vs ${avgDays}d avg` : ''}
-        </span>
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <TodayCard
-          label="Feeds"
-          value={loading ? '—' : String(today.feeds)}
-          avg={loading ? null : avg.feeds}
-          avgFmt={(v) => v.toFixed(1)}
-          today={today.feeds}
-        />
-        <TodayCard
-          label="Volume in"
-          value={loading ? '—' : `${Math.round(today.volumeMl)} mL`}
-          avg={loading ? null : avg.volumeMl}
-          avgFmt={(v) => `${Math.round(v)} mL`}
-          today={today.volumeMl}
-        />
-        <TodayCard
-          label="Wet"
-          value={loading ? '—' : String(today.wet)}
-          avg={loading ? null : avg.wet}
-          avgFmt={(v) => v.toFixed(1)}
-          today={today.wet}
-          tone={wetTone}
-        />
-        <TodayCard
-          label="Dirty"
-          value={loading ? '—' : String(today.dirty)}
-          avg={loading ? null : avg.dirty}
-          avgFmt={(v) => v.toFixed(1)}
-          today={today.dirty}
-        />
-      </div>
-    </section>
-  )
-}
-
-function TodayCard({
-  label,
-  value,
-  avg,
-  avgFmt,
-  today,
-  tone = 'default',
-}: {
-  label: string
-  value: string
-  avg: number | null
-  avgFmt: (v: number) => string
-  today: number
-  tone?: 'default' | 'amber'
-}) {
-  // "Notably" different = ≥15% off the baseline. Anything tighter and
-  // the arrow flickers from session to session, defeating the purpose.
-  let trend: 'up' | 'down' | 'flat' = 'flat'
-  if (avg != null && avg > 0) {
-    const ratio = today / avg
-    if (ratio >= 1.15) trend = 'up'
-    else if (ratio <= 0.85) trend = 'down'
-  }
-  return (
-    <div
-      className={`card p-3 ${
-        tone === 'amber'
-          ? 'border-amber-200 bg-amber-50/40 dark:border-amber-800/40 dark:bg-amber-900/20'
-          : ''
-      }`}
-    >
-      <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{label}</div>
-      <div
-        className={`text-base font-semibold mt-0.5 truncate ${
-          tone === 'amber' ? 'text-amber-800 dark:text-amber-300' : ''
-        }`}
-      >
-        {value}
-      </div>
-      <div className="text-[11px] text-slate-400 mt-0.5 truncate dark:text-slate-500 flex items-center gap-1">
-        {avg == null ? (
-          <span>—</span>
-        ) : (
-          <>
-            <span aria-hidden>
-              {trend === 'up' ? '▲' : trend === 'down' ? '▼' : '·'}
-            </span>
-            <span>{avgFmt(avg)}/d</span>
-          </>
-        )}
-      </div>
-    </div>
   )
 }
 
