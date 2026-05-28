@@ -56,6 +56,9 @@ export async function updateBaby(
       | 'gestational_age_weeks'
       | 'gestational_age_days'
       | 'breast_ml_per_min'
+      | 'stale_feed_hours'
+      | 'stale_diaper_hours'
+      | 'stale_pump_hours'
     >
   >,
 ): Promise<Baby> {

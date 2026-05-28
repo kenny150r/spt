@@ -10,6 +10,12 @@ export interface Baby {
   // Conversion factor used when computing volume-equivalent breastfeeding totals.
   // Configurable in Settings; null = use a sensible default (~20 mL/min).
   breast_ml_per_min: number | null
+  // Per-baby thresholds (in hours) for the "Last X" cards on the Log
+  // page to start pulsing amber. NULL = use the app default; 0 =
+  // never pulse. Edit in Settings → Notifications.
+  stale_feed_hours: number | null
+  stale_diaper_hours: number | null
+  stale_pump_hours: number | null
   created_at: string
 }
 

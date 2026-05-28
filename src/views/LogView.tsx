@@ -53,13 +53,13 @@ type ViewMode = 'cards' | 'table'
 
 const PAGE_SIZE = 30
 
-// "Last X" cards flash a soft amber pulse once the entry is older than
-// this many hours, giving a glanceable nudge that something's overdue.
+// Default "Last X" stale-pulse thresholds (hours). The per-baby
+// overrides live on `baby.stale_*_hours` (Settings → Notifications).
 // Weight intentionally has no threshold — those are checked daily at
 // most, so pulsing them would be noise.
-const STALE_HOURS_FEED = 3
-const STALE_HOURS_DIAPER = 3
-const STALE_HOURS_PUMP = 3
+const DEFAULT_STALE_HOURS_FEED = 3
+const DEFAULT_STALE_HOURS_DIAPER = 3
+const DEFAULT_STALE_HOURS_PUMP = 3
 
 export function LogView({ baby }: { baby: Baby }) {
   const { diaper: vocab } = useVocab()
@@ -249,21 +249,21 @@ export function LogView({ baby }: { baby: Baby }) {
           value={lastFeed ? timeSinceShort(lastFeed.fed_at) : '—'}
           icon={<Utensils className="h-4 w-4" />}
           at={lastFeed?.fed_at}
-          staleAfterHours={STALE_HOURS_FEED}
+          staleAfterHours={baby.stale_feed_hours ?? DEFAULT_STALE_HOURS_FEED}
         />
         <SummaryCard
           label="Last diaper"
           value={lastDiaper ? timeSinceShort(lastDiaper.occurred_at) : '—'}
           icon={<Droplet className="h-4 w-4" />}
           at={lastDiaper?.occurred_at}
-          staleAfterHours={STALE_HOURS_DIAPER}
+          staleAfterHours={baby.stale_diaper_hours ?? DEFAULT_STALE_HOURS_DIAPER}
         />
         <SummaryCard
           label="Last pump"
           value={lastPump ? timeSinceShort(lastPump.pumped_at) : '—'}
           icon={<Wind className="h-4 w-4" />}
           at={lastPump?.pumped_at}
-          staleAfterHours={STALE_HOURS_PUMP}
+          staleAfterHours={baby.stale_pump_hours ?? DEFAULT_STALE_HOURS_PUMP}
         />
         <SummaryCard
           label="Last weight"
@@ -923,6 +923,7 @@ function SummaryCard({
   const stale =
     at != null &&
     staleAfterHours != null &&
+    staleAfterHours > 0 &&
     (Date.now() - new Date(at).getTime()) / (3600 * 1000) >= staleAfterHours
 
   return (

@@ -15,6 +15,13 @@ create table if not exists public.babies (
   gestational_age_weeks  integer check (gestational_age_weeks is null or gestational_age_weeks between 20 and 45),
   gestational_age_days   integer check (gestational_age_days  is null or gestational_age_days  between 0 and 6),
   breast_ml_per_min      numeric(5, 2) check (breast_ml_per_min is null or (breast_ml_per_min > 0 and breast_ml_per_min <= 100)),
+  -- "Last X" summary cards on the Log page pulse amber once an entry is
+  -- older than these per-baby thresholds (hours). NULL = use the app
+  -- default; 0 = never pulse (effectively disabled). Decimal allowed so
+  -- "2.5 h" style is possible.
+  stale_feed_hours       numeric(5, 2) check (stale_feed_hours   is null or (stale_feed_hours   >= 0 and stale_feed_hours   <= 48)),
+  stale_diaper_hours     numeric(5, 2) check (stale_diaper_hours is null or (stale_diaper_hours >= 0 and stale_diaper_hours <= 48)),
+  stale_pump_hours       numeric(5, 2) check (stale_pump_hours   is null or (stale_pump_hours   >= 0 and stale_pump_hours   <= 48)),
   created_at             timestamptz not null default now()
 );
 
@@ -23,7 +30,10 @@ create table if not exists public.babies (
 alter table public.babies
   add column if not exists gestational_age_weeks integer,
   add column if not exists gestational_age_days  integer,
-  add column if not exists breast_ml_per_min     numeric(5, 2);
+  add column if not exists breast_ml_per_min     numeric(5, 2),
+  add column if not exists stale_feed_hours      numeric(5, 2),
+  add column if not exists stale_diaper_hours    numeric(5, 2),
+  add column if not exists stale_pump_hours      numeric(5, 2);
 do $$ begin
   if not exists (
     select 1 from pg_constraint where conname = 'babies_ga_weeks_chk'
@@ -42,6 +52,24 @@ do $$ begin
   ) then
     alter table public.babies add constraint babies_breast_rate_chk
       check (breast_ml_per_min is null or (breast_ml_per_min > 0 and breast_ml_per_min <= 100));
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname = 'babies_stale_feed_chk'
+  ) then
+    alter table public.babies add constraint babies_stale_feed_chk
+      check (stale_feed_hours is null or (stale_feed_hours >= 0 and stale_feed_hours <= 48));
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname = 'babies_stale_diaper_chk'
+  ) then
+    alter table public.babies add constraint babies_stale_diaper_chk
+      check (stale_diaper_hours is null or (stale_diaper_hours >= 0 and stale_diaper_hours <= 48));
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname = 'babies_stale_pump_chk'
+  ) then
+    alter table public.babies add constraint babies_stale_pump_chk
+      check (stale_pump_hours is null or (stale_pump_hours >= 0 and stale_pump_hours <= 48));
   end if;
 end $$;
 

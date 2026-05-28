@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Download, Monitor, Moon, Sun } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Bell, Download, Monitor, Moon, Sun } from 'lucide-react'
 import { exportBabyData, updateBaby } from '../lib/api'
 import { toDateInput } from '../lib/format'
 import type { Baby, Sex } from '../lib/types'
@@ -7,6 +7,14 @@ import { useVocab } from '../lib/vocab'
 import type { VocabMode } from '../lib/vocab'
 import { useTheme } from '../lib/theme'
 import type { ThemeMode } from '../lib/theme'
+
+// Keep in sync with DEFAULT_STALE_HOURS_* in LogView.tsx. Duplicated
+// here so the Settings form can show a meaningful placeholder.
+const DEFAULT_STALE_HOURS = {
+  feed: 3,
+  diaper: 3,
+  pump: 3,
+} as const
 
 export function SettingsView({
   baby,
@@ -187,6 +195,8 @@ export function SettingsView({
 
       <AppearanceCard />
 
+      <NotificationsCard baby={baby} onUpdated={onUpdated} />
+
       <VocabularyCard />
 
       <ExportCard baby={baby} />
@@ -361,6 +371,160 @@ function AppearanceCard() {
         ))}
       </div>
     </section>
+  )
+}
+
+// Per-baby thresholds for how long since the last feed / diaper / pump
+// before the "Last X" cards on the Log page start pulsing amber.
+// Stored on the baby row so both parents see the same nudges. 0 = off.
+function NotificationsCard({
+  baby,
+  onUpdated,
+}: {
+  baby: Baby
+  onUpdated: (b: Baby) => void
+}) {
+  const [feed, setFeed] = useState<string>(
+    baby.stale_feed_hours?.toString() ?? DEFAULT_STALE_HOURS.feed.toString(),
+  )
+  const [diaper, setDiaper] = useState<string>(
+    baby.stale_diaper_hours?.toString() ?? DEFAULT_STALE_HOURS.diaper.toString(),
+  )
+  const [pump, setPump] = useState<string>(
+    baby.stale_pump_hours?.toString() ?? DEFAULT_STALE_HOURS.pump.toString(),
+  )
+  const [saving, setSaving] = useState(false)
+  const [savedAt, setSavedAt] = useState<number>(0)
+  const [error, setError] = useState<string>('')
+
+  // Auto-clear the "Saved." badge so it doesn't linger if the user
+  // tweaks values, glances away, then comes back.
+  useEffect(() => {
+    if (!savedAt) return
+    const id = setTimeout(() => setSavedAt(0), 2500)
+    return () => clearTimeout(id)
+  }, [savedAt])
+
+  function parseHours(s: string): number | null {
+    if (s.trim() === '') return null
+    const n = Number(s)
+    if (!Number.isFinite(n) || n < 0) return null
+    return n
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    setError('')
+    try {
+      const updated = await updateBaby(baby.id, {
+        stale_feed_hours: parseHours(feed),
+        stale_diaper_hours: parseHours(diaper),
+        stale_pump_hours: parseHours(pump),
+      })
+      onUpdated(updated)
+      setSavedAt(Date.now())
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="card p-5">
+      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-1 dark:text-slate-400 flex items-center gap-1.5">
+        <Bell className="h-4 w-4" />
+        Notifications
+      </h2>
+      <p className="text-xs text-slate-500 mb-4 dark:text-slate-400">
+        Pulse the &ldquo;Last X&rdquo; cards on the Log page once an entry
+        is older than this many hours. Per-baby, so both parents see the
+        same nudges. Set to <span className="font-medium">0</span> to disable.
+      </p>
+      <form onSubmit={onSubmit} className="space-y-3">
+        <StaleHoursField
+          id="stale-feed"
+          label="Feed"
+          value={feed}
+          onChange={setFeed}
+          placeholder={DEFAULT_STALE_HOURS.feed}
+        />
+        <StaleHoursField
+          id="stale-diaper"
+          label="Diaper"
+          value={diaper}
+          onChange={setDiaper}
+          placeholder={DEFAULT_STALE_HOURS.diaper}
+        />
+        <StaleHoursField
+          id="stale-pump"
+          label="Pump"
+          value={pump}
+          onChange={setPump}
+          placeholder={DEFAULT_STALE_HOURS.pump}
+        />
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        <div className="flex items-center gap-3 pt-1">
+          <button type="submit" disabled={saving} className="btn-primary">
+            {saving ? 'Saving…' : 'Save thresholds'}
+          </button>
+          {savedAt > 0 && !saving && (
+            <span className="text-xs text-emerald-600 dark:text-emerald-400">
+              Saved.
+            </span>
+          )}
+        </div>
+        <p className="text-[11px] text-slate-400 mt-1 leading-relaxed dark:text-slate-500">
+          Weight cards never pulse — those only update at most daily.
+        </p>
+      </form>
+    </section>
+  )
+}
+
+function StaleHoursField({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (v: string) => void
+  placeholder: number
+}) {
+  const off = value.trim() === '0'
+  return (
+    <div>
+      <label className="label" htmlFor={id}>
+        {label}
+        {off && (
+          <span className="ml-2 text-[11px] font-normal uppercase tracking-wide text-slate-400 dark:text-slate-500">
+            off
+          </span>
+        )}
+      </label>
+      <div className="relative">
+        <input
+          id={id}
+          type="number"
+          min={0}
+          max={48}
+          step="0.25"
+          inputMode="decimal"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder.toString()}
+          className="input pr-12"
+        />
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 dark:text-slate-500">
+          hrs
+        </span>
+      </div>
+    </div>
   )
 }
 
