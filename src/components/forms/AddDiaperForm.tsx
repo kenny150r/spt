@@ -4,7 +4,18 @@ import { toDatetimeLocal } from '../../lib/format'
 import type { DiaperEntry, DiaperSize, DiaperType } from '../../lib/types'
 import { useVocab } from '../../lib/vocab'
 
-const SIZES: DiaperSize[] = ['small', 'medium', 'large']
+// UI-only ids — "blowout" is a fun fourth choice that maps to 'large'
+// at save time so the database schema stays unchanged. On edit, any
+// stored 'large' value re-hydrates to the 'large' button (we can't tell
+// from the DB whether the user originally tapped Large or Blowout).
+type SizeChoice = 'small' | 'medium' | 'large' | 'blowout'
+
+const SIZE_OPTIONS: { id: SizeChoice; label: string; value: DiaperSize }[] = [
+  { id: 'small', label: 'Small', value: 'small' },
+  { id: 'medium', label: 'Medium', value: 'medium' },
+  { id: 'large', label: 'Large', value: 'large' },
+  { id: 'blowout', label: 'Blowout', value: 'large' },
+]
 
 export function AddDiaperForm({
   babyId,
@@ -22,7 +33,9 @@ export function AddDiaperForm({
   const isEdit = entry != null
   const { diaper: vocab } = useVocab()
   const [type, setType] = useState<DiaperType>(entry?.type ?? initialType)
-  const [size, setSize] = useState<DiaperSize | null>(entry?.size ?? null)
+  const [sizeChoice, setSizeChoice] = useState<SizeChoice | null>(
+    entry?.size ?? null,
+  )
   const [occurredAt, setOccurredAt] = useState(
     entry ? toDatetimeLocal(new Date(entry.occurred_at)) : toDatetimeLocal(new Date()),
   )
@@ -39,10 +52,14 @@ export function AddDiaperForm({
     setSubmitting(true)
     setError('')
     try {
+      const resolvedSize: DiaperSize | null =
+        sizeApplies && sizeChoice
+          ? (SIZE_OPTIONS.find((o) => o.id === sizeChoice)?.value ?? null)
+          : null
       const payload = {
         occurred_at: new Date(occurredAt).toISOString(),
         type,
-        size: sizeApplies ? size : null,
+        size: resolvedSize,
         notes: notes.trim() || null,
       }
       if (isEdit && entry) {
@@ -88,25 +105,33 @@ export function AddDiaperForm({
       {sizeApplies && (
         <div>
           <label className="label">Size</label>
-          <div className="grid grid-cols-3 gap-2">
-            {SIZES.map((s) => (
-              <button
-                type="button"
-                key={s}
-                onClick={() => setSize((cur) => (cur === s ? null : s))}
-                aria-pressed={size === s}
-                className={`btn ${
-                  size === s
-                    ? 'bg-brand-600 text-white dark:bg-brand-500'
-                    : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200'
-                } capitalize`}
-              >
-                {s}
-              </button>
-            ))}
+          <div className="grid grid-cols-2 gap-2">
+            {SIZE_OPTIONS.map((opt) => {
+              const selected = sizeChoice === opt.id
+              const isBlowout = opt.id === 'blowout'
+              return (
+                <button
+                  type="button"
+                  key={opt.id}
+                  onClick={() =>
+                    setSizeChoice((cur) => (cur === opt.id ? null : opt.id))
+                  }
+                  aria-pressed={selected}
+                  className={`btn ${
+                    selected
+                      ? isBlowout
+                        ? 'bg-amber-600 text-white dark:bg-amber-500'
+                        : 'bg-brand-600 text-white dark:bg-brand-500'
+                      : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
           </div>
           <p className="text-[11px] text-slate-500 mt-1.5 dark:text-slate-400">
-            Optional. Tap a selected size again to clear it.
+            Optional. Tap again to clear. Blowout saves as Large.
           </p>
         </div>
       )}
