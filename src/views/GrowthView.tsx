@@ -7,7 +7,6 @@ import {
   LineChart,
   ReferenceLine,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
@@ -181,30 +180,112 @@ export function GrowthView({ baby }: { baby: Baby }) {
     return { am, z, pct: zToPercentile(z) }
   }, [latest, baby, isPreterm])
 
-  // Last-7-days growth: compare latest weight to the weight closest to
-  // (latest.measured_at - 7 days). Only show if a prior weight exists within
-  // a 14-day window.
+  // Last-7-days growth rate.
+  //
+  // The display used to anchor on the latest measurement and a single
+  // "closest to 7 days ago" measurement, which made the printed g/day
+  // jerk around by ±10g every time a noisy weighing landed near either
+  // anchor (e.g. weighing right before vs right after a feed).
+  //
+  // To stabilize it we fit a 1st-order Savitzky-Golay filter (i.e. an
+  // ordinary least-squares line) through every measurement inside the
+  // 7-day window. The slope of that line is the g/day rate. Because
+  // every sample contributes, swapping one in or out barely moves the
+  // number — which is the whole point.
+  //
+  // With < 3 samples in the window we fall back to the original
+  // two-point comparison (search expanded to 14 days) so very-thin data
+  // still reports *something*.
   const weeklyDelta = useMemo(() => {
     if (!latest || weights.length < 2) return null
+    const DAY_MS = 24 * 3600 * 1000
+    const WINDOW_DAYS = 7
     const latestT = new Date(latest.measured_at).getTime()
-    const target = latestT - 7 * 24 * 3600 * 1000
-    let best: WeightEntry | null = null
-    let bestDist = Infinity
-    for (const w of weights) {
-      if (w.id === latest.id) continue
+    const windowStart = latestT - WINDOW_DAYS * DAY_MS
+
+    const inWindow = weights.filter((w) => {
       const t = new Date(w.measured_at).getTime()
-      if (t >= latestT) continue
-      const dist = Math.abs(t - target)
-      if (dist < bestDist) {
-        bestDist = dist
-        best = w
+      return t >= windowStart && t <= latestT
+    })
+
+    let days: number
+    let deltaKg: number
+    let gPerDay: number
+    let thenWeightKg: number
+    let thenT: number
+    let nSamples: number
+    let smoothed: boolean
+
+    if (inWindow.length >= 3) {
+      // OLS regression of weight (kg) on time (days, relative to latest).
+      let sumT = 0
+      let sumW = 0
+      const ts: number[] = []
+      const ws: number[] = []
+      for (const w of inWindow) {
+        const t = (new Date(w.measured_at).getTime() - latestT) / DAY_MS
+        ts.push(t)
+        ws.push(w.weight_kg)
+        sumT += t
+        sumW += w.weight_kg
       }
+      const n = inWindow.length
+      const meanT = sumT / n
+      const meanW = sumW / n
+      let num = 0
+      let den = 0
+      for (let i = 0; i < n; i++) {
+        const dt = ts[i] - meanT
+        num += dt * (ws[i] - meanW)
+        den += dt * dt
+      }
+      if (den === 0) return null
+      const slopeKgPerDay = num / den
+      const intercept = meanW - slopeKgPerDay * meanT
+
+      // Use the actual data span as the window length so we don't claim
+      // 7 days of growth when we only have, say, 4 days of data.
+      const oldestT = inWindow.reduce(
+        (acc, w) => Math.min(acc, new Date(w.measured_at).getTime()),
+        latestT,
+      )
+      days = (latestT - oldestT) / DAY_MS
+      gPerDay = slopeKgPerDay * 1000
+      deltaKg = slopeKgPerDay * days
+
+      // Use the *fitted* weights at the endpoints for z-score comparison
+      // rather than any single noisy sample.
+      thenT = oldestT
+      thenWeightKg = intercept + slopeKgPerDay * ((oldestT - latestT) / DAY_MS)
+      nSamples = n
+      smoothed = true
+    } else {
+      // Fallback: original behaviour — closest measurement to "7 days ago"
+      // within a 14-day search window.
+      const target = latestT - WINDOW_DAYS * DAY_MS
+      let best: WeightEntry | null = null
+      let bestDist = Infinity
+      for (const w of weights) {
+        if (w.id === latest.id) continue
+        const t = new Date(w.measured_at).getTime()
+        if (t >= latestT) continue
+        const dist = Math.abs(t - target)
+        if (dist < bestDist) {
+          bestDist = dist
+          best = w
+        }
+      }
+      if (!best) return null
+      const bestT = new Date(best.measured_at).getTime()
+      days = (latestT - bestT) / DAY_MS
+      if (days > 14) return null
+      deltaKg = latest.weight_kg - best.weight_kg
+      gPerDay = (deltaKg * 1000) / days
+      thenT = bestT
+      thenWeightKg = best.weight_kg
+      nSamples = inWindow.length
+      smoothed = false
     }
-    if (!best) return null
-    const days = (latestT - new Date(best.measured_at).getTime()) / (24 * 3600 * 1000)
-    if (days > 14) return null
-    const deltaKg = latest.weight_kg - best.weight_kg
-    const gPerDay = (deltaKg * 1000) / days
 
     const ageNow = isPreterm
       ? correctedAgeMonths(
@@ -219,19 +300,19 @@ export function GrowthView({ baby }: { baby: Baby }) {
           baby.birthday,
           baby.gestational_age_weeks,
           baby.gestational_age_days,
-          new Date(best.measured_at),
+          new Date(thenT),
         )
-      : ageInMonths(baby.birthday, new Date(best.measured_at))
+      : ageInMonths(baby.birthday, new Date(thenT))
 
     const zNow = ageNow >= 0 ? estimateZScore(baby.sex, ageNow, latest.weight_kg) : null
-    const zThen =
-      ageThen >= 0 ? estimateZScore(baby.sex, ageThen, best.weight_kg) : null
+    const zThen = ageThen >= 0 ? estimateZScore(baby.sex, ageThen, thenWeightKg) : null
 
     // "Typical" gain over the same window: the actual delta on the WHO
-    // 50th-percentile curve at the baby's (corrected) age. This is age-specific
-    // (newborns gain ~30 g/day, 6-month-olds ~12 g/day) so it's a better
-    // benchmark than a hard-coded range. Falls back to the static reference
-    // table only when corrected age is still negative (no WHO data pre-term).
+    // 50th-percentile curve at the baby's (corrected) age. This is
+    // age-specific (newborns gain ~30 g/day, 6-month-olds ~12 g/day) so
+    // it's a better benchmark than a hard-coded range. Falls back to the
+    // static reference table only when corrected age is still negative
+    // (no WHO data pre-term).
     let expectedGPerDay: number | null = null
     let expectedSource: 'who50' | 'preterm' | null = null
     if (ageNow >= 0 && ageThen >= 0) {
@@ -258,6 +339,8 @@ export function GrowthView({ baby }: { baby: Baby }) {
       zThen,
       expectedGPerDay,
       expectedSource,
+      nSamples,
+      smoothed,
     }
   }, [latest, weights, baby, isPreterm])
 
@@ -317,9 +400,23 @@ export function GrowthView({ baby }: { baby: Baby }) {
 
       {weeklyDelta && (
         <section className="card p-4">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide dark:text-slate-400">
-            Last {Math.round(weeklyDelta.days)} days
-          </h2>
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide dark:text-slate-400">
+              Last {Math.round(weeklyDelta.days)} days
+            </h2>
+            <span
+              className="text-[10px] text-slate-400 dark:text-slate-500"
+              title={
+                weeklyDelta.smoothed
+                  ? 'Linear regression (1st-order Savitzky–Golay) over every weight in the window — robust to single-feed noise.'
+                  : 'Two-point comparison (not enough samples in window to smooth).'
+              }
+            >
+              {weeklyDelta.smoothed
+                ? `smoothed · ${weeklyDelta.nSamples} samples`
+                : '2-point'}
+            </span>
+          </div>
           <div className="mt-2 flex items-center gap-3">
             <DeltaPill delta={weeklyDelta.deltaKg} />
             <div className="text-sm text-slate-600 dark:text-slate-300">
@@ -492,19 +589,6 @@ export function GrowthView({ baby }: { baby: Baby }) {
                   fill: t.axis,
                 }}
               />
-              <Tooltip
-                contentStyle={{ background: t.tooltipBg, border: `1px solid ${t.tooltipBorder}`, color: t.tooltipText }}
-                labelStyle={{ color: t.tooltipText }}
-                formatter={(v, name) => {
-                  const num = typeof v === 'number' ? v : Number(v)
-                  if (!Number.isFinite(num)) return ['—', name as string]
-                  return [
-                    unit === 'lb' ? `${num.toFixed(1)} lb` : `${num.toFixed(2)} kg`,
-                    name as string,
-                  ]
-                }}
-                labelFormatter={(v) => formatXLabel(Number(v), showAsGA)}
-              />
               <Legend
                 verticalAlign="top"
                 wrapperStyle={{ fontSize: 11, paddingBottom: 6, color: t.legend }}
@@ -628,18 +712,6 @@ function formatXTick(v: number, xMax: number, showAsGA: boolean): string {
     return `${weeks.toFixed(0)}w`
   }
   return v.toFixed(0)
-}
-
-function formatXLabel(v: number, showAsGA: boolean): string {
-  if (showAsGA) {
-    const { weeks, days } = correctedMonthsToGA(v)
-    return `${weeks}w ${days}d GA`
-  }
-  if (Math.abs(v) < 1) {
-    const days = Math.round(v * DAYS_PER_MONTH)
-    return `${days} d`
-  }
-  return `${v.toFixed(1)} mo`
 }
 
 function formatPercentile(p: number): string {
