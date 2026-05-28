@@ -126,6 +126,7 @@ export function LogView({ baby }: { baby: Baby }) {
   const lastFeed = feeds[0]
   const lastDiaper = diapers[0]
   const lastWeight = weights[0]
+  const lastPump = pumps[0]
 
   // Today's once-daily supplement status. Reads primarily from the dedicated
   // supplements table, but also folds in feeds.iron / feeds.multivitamin so
@@ -224,7 +225,7 @@ export function LogView({ baby }: { baby: Baby }) {
 
   return (
     <div className="space-y-5">
-      <section className="grid grid-cols-3 gap-3">
+      <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <SummaryCard
           label="Last feed"
           value={lastFeed ? timeSinceShort(lastFeed.fed_at) : '—'}
@@ -234,6 +235,11 @@ export function LogView({ baby }: { baby: Baby }) {
           label="Last diaper"
           value={lastDiaper ? timeSinceShort(lastDiaper.occurred_at) : '—'}
           icon={<Droplet className="h-4 w-4" />}
+        />
+        <SummaryCard
+          label="Last pump"
+          value={lastPump ? timeSinceShort(lastPump.pumped_at) : '—'}
+          icon={<Wind className="h-4 w-4" />}
         />
         <SummaryCard
           label="Last weight"
