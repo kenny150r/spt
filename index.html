@@ -8,6 +8,23 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <title>Sam's Baby Tracker</title>
+    <script>
+      // Apply the theme synchronously before React mounts so users don't
+      // see a light-mode flash. Mirrors loadMode() in src/lib/theme.ts:
+      // default to 'dark' when nothing is stored.
+      (function () {
+        try {
+          var stored = localStorage.getItem('spt-theme-mode-v1')
+          var mode = stored === 'light' || stored === 'dark' || stored === 'system'
+            ? stored
+            : 'dark'
+          var resolved = mode === 'system'
+            ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+            : mode
+          if (resolved === 'dark') document.documentElement.classList.add('dark')
+        } catch (e) {}
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

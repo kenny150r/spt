@@ -18,14 +18,15 @@ export type ThemeMode = 'system' | 'light' | 'dark'
 export type ResolvedTheme = 'light' | 'dark'
 
 const STORAGE_KEY = 'spt-theme-mode-v1'
+const DEFAULT_MODE: ThemeMode = 'dark'
 
 function loadMode(): ThemeMode {
-  if (typeof localStorage === 'undefined') return 'system'
+  if (typeof localStorage === 'undefined') return DEFAULT_MODE
   try {
     const v = localStorage.getItem(STORAGE_KEY)
-    return v === 'light' || v === 'dark' || v === 'system' ? v : 'system'
+    return v === 'light' || v === 'dark' || v === 'system' ? v : DEFAULT_MODE
   } catch {
-    return 'system'
+    return DEFAULT_MODE
   }
 }
 
