@@ -516,7 +516,10 @@ export function GrowthView({ baby }: { baby: Baby }) {
                   strokeDasharray="3 3"
                   label={{
                     value: showAsGA ? '40w (term)' : 'Term',
-                    position: 'top',
+                    // `insideTop` keeps the marker visually attached to the
+                    // line while staying within the plot area, so it can't
+                    // collide with the top-aligned legend above.
+                    position: 'insideTop',
                     fontSize: 10,
                     fill: t.bars.amber,
                   }}
