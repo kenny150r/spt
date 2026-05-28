@@ -93,20 +93,20 @@ export function SignIn() {
     <div className="min-h-dvh flex items-center justify-center px-4">
       <div className="w-full max-w-sm card p-8">
         <div className="flex items-center gap-3 mb-6">
-          <div className="h-12 w-12 rounded-2xl bg-brand-600 text-white grid place-items-center">
+          <div className="h-12 w-12 rounded-2xl bg-brand-600 text-white grid place-items-center dark:bg-brand-500">
             <BabyIcon className="h-6 w-6" />
           </div>
           <div>
             <h1 className="text-xl font-semibold leading-tight">Sam's Baby Tracker</h1>
-            <p className="text-sm text-slate-500">Sign in to continue</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Sign in to continue</p>
           </div>
         </div>
 
         {magicLinkSent ? (
           <div className="text-center py-6">
-            <Mail className="h-10 w-10 mx-auto text-brand-600 mb-3" />
+            <Mail className="h-10 w-10 mx-auto text-brand-600 mb-3 dark:text-brand-400" />
             <h2 className="font-medium">Check your email</h2>
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-sm text-slate-500 mt-1 dark:text-slate-400">
               We sent a magic sign-in link to <span className="font-medium">{email}</span>.
             </p>
             <button
@@ -122,7 +122,7 @@ export function SignIn() {
             <div
               role="tablist"
               aria-label="Sign-in method"
-              className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-xl mb-4 text-sm"
+              className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-xl mb-4 text-sm dark:bg-slate-800"
             >
               {([
                 { id: 'password', label: 'Password' },
@@ -139,8 +139,8 @@ export function SignIn() {
                   }}
                   className={`py-1.5 rounded-lg font-medium transition-colors ${
                     mode === t.id
-                      ? 'bg-white shadow-sm text-slate-900'
-                      : 'text-slate-500'
+                      ? 'bg-white shadow-sm text-slate-900 dark:bg-slate-700 dark:text-slate-100'
+                      : 'text-slate-500 dark:text-slate-400'
                   }`}
                 >
                   {t.label}
@@ -149,7 +149,7 @@ export function SignIn() {
             </div>
 
             {linkError && (
-              <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 mb-4">
+              <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 mb-4 dark:border-amber-800/50 dark:bg-amber-900/30 dark:text-amber-200">
                 <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <span>{friendlyLinkError(linkError.code, linkError.description)}</span>
               </div>
@@ -185,7 +185,7 @@ export function SignIn() {
                     className="input"
                   />
                 </div>
-                {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
+                {errorMsg && <p className="text-sm text-red-600 dark:text-red-400">{errorMsg}</p>}
                 <button
                   type="submit"
                   disabled={submitting}
@@ -193,7 +193,7 @@ export function SignIn() {
                 >
                   {submitting ? 'Signing in…' : 'Sign in'}
                 </button>
-                <p className="text-xs text-slate-500 text-center">
+                <p className="text-xs text-slate-500 text-center dark:text-slate-400">
                   Set a password for your user in the Supabase dashboard
                   (Authentication&nbsp;→&nbsp;Users).
                 </p>
@@ -215,7 +215,7 @@ export function SignIn() {
                     className="input"
                   />
                 </div>
-                {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
+                {errorMsg && <p className="text-sm text-red-600 dark:text-red-400">{errorMsg}</p>}
                 <button
                   type="submit"
                   disabled={submitting}
@@ -223,7 +223,7 @@ export function SignIn() {
                 >
                   {submitting ? 'Sending…' : 'Send magic link'}
                 </button>
-                <p className="text-xs text-slate-500 text-center">
+                <p className="text-xs text-slate-500 text-center dark:text-slate-400">
                   We'll email you a one-tap sign-in link.
                 </p>
               </form>

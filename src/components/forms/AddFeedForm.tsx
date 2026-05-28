@@ -73,8 +73,8 @@ export function AddFeedForm({
               onClick={() => setType(t)}
               className={`btn ${
                 type === t
-                  ? 'bg-brand-600 text-white'
-                  : 'bg-white border border-slate-200 text-slate-700'
+                  ? 'bg-brand-600 text-white dark:bg-brand-500'
+                  : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200'
               }`}
             >
               {t === 'bottle' ? 'Bottle' : 'Breast'}
@@ -136,8 +136,8 @@ export function AddFeedForm({
                   onClick={() => setSide(s)}
                   className={`btn ${
                     side === s
-                      ? 'bg-brand-600 text-white'
-                      : 'bg-white border border-slate-200 text-slate-700'
+                      ? 'bg-brand-600 text-white dark:bg-brand-500'
+                      : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200'
                   } capitalize`}
                 >
                   {s}
@@ -175,7 +175,7 @@ export function AddFeedForm({
         />
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <div className="flex gap-2 pt-1">
         <button type="button" onClick={onCancel} className="btn-secondary flex-1">
@@ -205,8 +205,8 @@ function SupplementToggle({
       aria-pressed={checked}
       className={`btn ${
         checked
-          ? 'bg-emerald-600 text-white'
-          : 'bg-white border border-slate-200 text-slate-700'
+          ? 'bg-emerald-600 text-white dark:bg-emerald-500'
+          : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200'
       }`}
     >
       {checked ? '✓ ' : ''}

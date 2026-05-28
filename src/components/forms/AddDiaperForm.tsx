@@ -75,8 +75,8 @@ export function AddDiaperForm({
               onClick={() => setType(t)}
               className={`btn ${
                 type === t
-                  ? 'bg-brand-600 text-white'
-                  : 'bg-white border border-slate-200 text-slate-700'
+                  ? 'bg-brand-600 text-white dark:bg-brand-500'
+                  : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200'
               }`}
             >
               {typeLabels[t]}
@@ -97,15 +97,15 @@ export function AddDiaperForm({
                 aria-pressed={size === s}
                 className={`btn ${
                   size === s
-                    ? 'bg-brand-600 text-white'
-                    : 'bg-white border border-slate-200 text-slate-700'
+                    ? 'bg-brand-600 text-white dark:bg-brand-500'
+                    : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200'
                 } capitalize`}
               >
                 {s}
               </button>
             ))}
           </div>
-          <p className="text-[11px] text-slate-500 mt-1.5">
+          <p className="text-[11px] text-slate-500 mt-1.5 dark:text-slate-400">
             Optional. Tap a selected size again to clear it.
           </p>
         </div>
@@ -132,7 +132,7 @@ export function AddDiaperForm({
           placeholder="Optional"
         />
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex gap-2 pt-1">
         <button type="button" onClick={onCancel} className="btn-secondary flex-1">
           Cancel

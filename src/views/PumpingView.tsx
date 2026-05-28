@@ -14,6 +14,7 @@ import {
 } from 'recharts'
 import { listFeedsSince, listPumpsSince } from '../lib/api'
 import type { Baby, FeedEntry, PumpEntry, PumpSide } from '../lib/types'
+import { useChartTheme } from '../lib/chartTheme'
 
 const DEFAULT_BREAST_ML_PER_MIN = 8
 
@@ -47,6 +48,7 @@ interface DayBucket {
 }
 
 export function PumpingView({ baby }: { baby: Baby }) {
+  const t = useChartTheme()
   const [range, setRange] = useState<Range>('14d')
   const [pumps, setPumps] = useState<PumpEntry[]>([])
   const [feeds, setFeeds] = useState<FeedEntry[]>([])
@@ -193,17 +195,19 @@ export function PumpingView({ baby }: { baby: Baby }) {
 
       <section>
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide dark:text-slate-400">
             Daily output
           </h2>
-          <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs">
+          <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs dark:border-slate-700">
             {RANGE_OPTIONS.map((r) => (
               <button
                 key={r.id}
                 type="button"
                 onClick={() => setRange(r.id)}
                 className={`px-3 py-1.5 font-medium ${
-                  range === r.id ? 'bg-brand-600 text-white' : 'bg-white text-slate-600'
+                  range === r.id
+                    ? 'bg-brand-600 text-white dark:bg-brand-500'
+                    : 'bg-white text-slate-600 dark:bg-slate-900 dark:text-slate-300'
                 }`}
               >
                 {r.label}
@@ -213,9 +217,9 @@ export function PumpingView({ baby }: { baby: Baby }) {
         </div>
 
         {loading ? (
-          <div className="card p-6 text-sm text-slate-500 text-center">Loading…</div>
+          <div className="card p-6 text-sm text-slate-500 text-center dark:text-slate-400">Loading…</div>
         ) : pumps.length === 0 ? (
-          <div className="card p-6 text-sm text-slate-500 text-center">
+          <div className="card p-6 text-sm text-slate-500 text-center dark:text-slate-400">
             No pumps logged in this range.
           </div>
         ) : (
@@ -225,23 +229,25 @@ export function PumpingView({ baby }: { baby: Baby }) {
               subtitle={`Grey = breastfed (est. @ ${breastFactor} mL/min)`}
             >
               <BarChart data={dailyData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-                <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 11 }} unit=" mL" width={56} />
+                <CartesianGrid stroke={t.grid} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: t.axis }} stroke={t.axis} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.axis} unit=" mL" width={56} />
                 <Tooltip
+                  contentStyle={{ background: t.tooltipBg, border: `1px solid ${t.tooltipBorder}`, color: t.tooltipText }}
+                  labelStyle={{ color: t.tooltipText }}
                   formatter={(v, n) => [`${Math.round(Number(v))} mL`, n]}
                   labelFormatter={(_l, payload) =>
                     payload?.[0]?.payload?.dateISO ?? ''
                   }
                 />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="leftMl" name="Left" stackId="lr" fill="#0ea5e9" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="rightMl" name="Right" stackId="lr" fill="#14b8a6" radius={[0, 0, 0, 0]} />
+                <Legend wrapperStyle={{ fontSize: 11, color: t.legend }} />
+                <Bar dataKey="leftMl" name="Left" stackId="lr" fill={t.bars.sky} radius={[0, 0, 0, 0]} />
+                <Bar dataKey="rightMl" name="Right" stackId="lr" fill={t.bars.teal} radius={[0, 0, 0, 0]} />
                 <Bar
                   dataKey="breastMl"
                   name="Breast (est)"
                   stackId="lr"
-                  fill="#cbd5e1"
+                  fill={t.bars.gray}
                   radius={[4, 4, 0, 0]}
                 />
               </BarChart>
@@ -249,27 +255,29 @@ export function PumpingView({ baby }: { baby: Baby }) {
 
             <ChartCard title="Sessions per day" subtitle="Grey = breastfeeds">
               <BarChart data={dailyData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-                <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <CartesianGrid stroke={t.grid} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: t.axis }} stroke={t.axis} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.axis} allowDecimals={false} />
                 <Tooltip
+                  contentStyle={{ background: t.tooltipBg, border: `1px solid ${t.tooltipBorder}`, color: t.tooltipText }}
+                  labelStyle={{ color: t.tooltipText }}
                   labelFormatter={(_l, payload) =>
                     payload?.[0]?.payload?.dateISO ?? ''
                   }
                 />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Legend wrapperStyle={{ fontSize: 11, color: t.legend }} />
                 <Bar
                   dataKey="sessions"
                   name="Pumps"
                   stackId="s"
-                  fill="#14b8a6"
+                  fill={t.bars.teal}
                   radius={[0, 0, 0, 0]}
                 />
                 <Bar
                   dataKey="breastSessions"
                   name="Breastfeeds"
                   stackId="s"
-                  fill="#cbd5e1"
+                  fill={t.bars.gray}
                   radius={[4, 4, 0, 0]}
                 />
               </BarChart>
@@ -277,28 +285,30 @@ export function PumpingView({ baby }: { baby: Baby }) {
 
             <ChartCard title="Time per day (min)" subtitle="Grey = breastfeed minutes">
               <BarChart data={dailyData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-                <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 11 }} unit=" m" width={48} />
+                <CartesianGrid stroke={t.grid} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: t.axis }} stroke={t.axis} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.axis} unit=" m" width={48} />
                 <Tooltip
+                  contentStyle={{ background: t.tooltipBg, border: `1px solid ${t.tooltipBorder}`, color: t.tooltipText }}
+                  labelStyle={{ color: t.tooltipText }}
                   formatter={(v, n) => [`${Math.round(Number(v))} min`, n]}
                   labelFormatter={(_l, payload) =>
                     payload?.[0]?.payload?.dateISO ?? ''
                   }
                 />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Legend wrapperStyle={{ fontSize: 11, color: t.legend }} />
                 <Bar
                   dataKey="totalMin"
                   name="Pump"
                   stackId="t"
-                  fill="#14b8a6"
+                  fill={t.bars.teal}
                   radius={[0, 0, 0, 0]}
                 />
                 <Bar
                   dataKey="breastMin"
                   name="Breast"
                   stackId="t"
-                  fill="#cbd5e1"
+                  fill={t.bars.gray}
                   radius={[4, 4, 0, 0]}
                 />
               </BarChart>
@@ -308,54 +318,55 @@ export function PumpingView({ baby }: { baby: Baby }) {
       </section>
 
       <section>
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2 dark:text-slate-400">
           Past 24 hours · pump timeline
         </h2>
         <div className="card p-4">
           <div className="h-[120px] -mx-2">
             <ResponsiveContainer width="100%" height="100%">
               <ScatterChart margin={{ top: 16, right: 12, left: 4, bottom: 8 }}>
-                <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" horizontal={false} />
+                <CartesianGrid stroke={t.grid} strokeDasharray="3 3" horizontal={false} />
                 <XAxis
                   type="number"
                   dataKey="hoursAgo"
                   domain={[-24, 0]}
                   ticks={[-24, -18, -12, -6, 0]}
                   tickFormatter={(h) => formatTickFromHoursAgo(Number(h))}
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 11, fill: t.axis }}
+                  stroke={t.axis}
                   allowDataOverflow
                 />
                 <YAxis type="number" dataKey="y" hide domain={[-1, 1]} />
                 <Tooltip
-                  cursor={{ stroke: '#cbd5e1', strokeDasharray: '3 3' }}
+                  cursor={{ stroke: t.cursor, strokeDasharray: '3 3' }}
                   content={<PumpEventTooltip />}
                 />
-                <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 4 }} />
+                <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 4, color: t.legend }} />
                 <Scatter
                   name="Left"
                   data={last24h.filter((e) => e.side === 'left')}
                   shape={(props: object) => (
-                    <PumpDot {...(props as DotProps)} color="#0ea5e9" />
+                    <PumpDot {...(props as DotProps)} color={t.bars.sky} />
                   )}
                 />
                 <Scatter
                   name="Right"
                   data={last24h.filter((e) => e.side === 'right')}
                   shape={(props: object) => (
-                    <PumpDot {...(props as DotProps)} color="#14b8a6" />
+                    <PumpDot {...(props as DotProps)} color={t.bars.teal} />
                   )}
                 />
                 <Scatter
                   name="Both"
                   data={last24h.filter((e) => e.side === 'both')}
                   shape={(props: object) => (
-                    <PumpDot {...(props as DotProps)} color="#0d9488" />
+                    <PumpDot {...(props as DotProps)} color={t.bars.tealDeep} />
                   )}
                 />
               </ScatterChart>
             </ResponsiveContainer>
           </div>
-          <p className="text-[11px] text-slate-400 text-center mt-1">
+          <p className="text-[11px] text-slate-400 text-center mt-1 dark:text-slate-500">
             {last24h.length === 0
               ? 'No pumps in the past 24 hours.'
               : `${last24h.length} session${last24h.length === 1 ? '' : 's'} · larger / darker = more volume`}
@@ -364,10 +375,10 @@ export function PumpingView({ baby }: { baby: Baby }) {
       </section>
 
       <section>
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2 dark:text-slate-400">
           Daily breakdown
         </h2>
-        <div className="card divide-y divide-slate-100">
+        <div className="card divide-y divide-slate-100 dark:divide-slate-800">
           {dailyData
             .slice()
             .reverse()
@@ -379,17 +390,17 @@ export function PumpingView({ baby }: { baby: Baby }) {
                 <div key={d.dateISO} className="px-4 py-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-sm font-medium truncate">{d.dateISO}</div>
-                    <div className="text-xs text-slate-500 shrink-0">
+                    <div className="text-xs text-slate-500 shrink-0 dark:text-slate-400">
                       {d.sessions} session{d.sessions === 1 ? '' : 's'}
                     </div>
                   </div>
-                  <div className="text-xs text-slate-500 mt-0.5">
+                  <div className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">
                     {Math.round(d.totalMl)} mL · {Math.round(d.totalMin)} min
                     {total > 0 &&
                       ` · L ${Math.round(d.leftMl)} / R ${Math.round(d.rightMl)} mL`}
                   </div>
                   {total > 0 && (
-                    <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden flex">
+                    <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden flex dark:bg-slate-800">
                       <div className="bg-sky-500" style={{ width: `${lPct}%` }} />
                       <div className="bg-teal-500" style={{ width: `${rPct}%` }} />
                     </div>
@@ -414,9 +425,9 @@ function SummaryCard({
 }) {
   return (
     <div className="card p-3">
-      <div className="text-xs text-slate-500 truncate">{label}</div>
+      <div className="text-xs text-slate-500 truncate dark:text-slate-400">{label}</div>
       <div className="text-base font-semibold mt-0.5 truncate">{value}</div>
-      {sub && <div className="text-[11px] text-slate-400 mt-0.5 truncate">{sub}</div>}
+      {sub && <div className="text-[11px] text-slate-400 mt-0.5 truncate dark:text-slate-500">{sub}</div>}
     </div>
   )
 }
@@ -433,11 +444,11 @@ function ChartCard({
   return (
     <div className="card p-4">
       <div className="flex items-baseline justify-between gap-2 mb-2">
-        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide dark:text-slate-400">
           {title}
         </h3>
         {subtitle && (
-          <span className="text-[10px] text-slate-400 truncate">{subtitle}</span>
+          <span className="text-[10px] text-slate-400 truncate dark:text-slate-500">{subtitle}</span>
         )}
       </div>
       <div className="h-[180px] -mx-2">
@@ -500,13 +511,13 @@ function PumpEventTooltip({
   const when = new Date(p.iso)
   const clock = format(when, 'h:mm a')
   return (
-    <div className="rounded-md bg-white shadow-md border border-slate-200 px-2.5 py-1.5 text-xs">
+    <div className="rounded-md bg-white shadow-md border border-slate-200 px-2.5 py-1.5 text-xs dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100">
       <div className="font-medium capitalize">{p.side} · {clock}</div>
       {p.amountMl != null && (
-        <div className="text-slate-500">{Math.round(p.amountMl)} mL</div>
+        <div className="text-slate-500 dark:text-slate-400">{Math.round(p.amountMl)} mL</div>
       )}
       {p.durationMin != null && (
-        <div className="text-slate-500">{p.durationMin} min</div>
+        <div className="text-slate-500 dark:text-slate-400">{p.durationMin} min</div>
       )}
     </div>
   )

@@ -37,12 +37,12 @@ export function SetupBaby({ onCreated }: { onCreated: (baby: Baby) => void }) {
     <div className="min-h-dvh flex items-center justify-center px-4">
       <div className="w-full max-w-sm card p-8">
         <div className="flex items-center gap-3 mb-6">
-          <div className="h-12 w-12 rounded-2xl bg-brand-600 text-white grid place-items-center">
+          <div className="h-12 w-12 rounded-2xl bg-brand-600 text-white grid place-items-center dark:bg-brand-500">
             <BabyIcon className="h-6 w-6" />
           </div>
           <div>
             <h1 className="text-xl font-semibold leading-tight">Welcome!</h1>
-            <p className="text-sm text-slate-500">Tell us about your little one.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Tell us about your little one.</p>
           </div>
         </div>
         <form onSubmit={onSubmit} className="space-y-4">
@@ -68,8 +68,8 @@ export function SetupBaby({ onCreated }: { onCreated: (baby: Baby) => void }) {
                   onClick={() => setSex(s)}
                   className={`btn ${
                     sex === s
-                      ? 'bg-brand-600 text-white'
-                      : 'bg-white border border-slate-200 text-slate-700'
+                      ? 'bg-brand-600 text-white dark:bg-brand-500'
+                      : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200'
                   }`}
                 >
                   {s === 'male' ? 'Boy' : 'Girl'}
@@ -92,7 +92,7 @@ export function SetupBaby({ onCreated }: { onCreated: (baby: Baby) => void }) {
           <div>
             <label className="label">
               Gestational age at birth{' '}
-              <span className="text-slate-400 font-normal">(40w 0d = full-term)</span>
+              <span className="text-slate-400 font-normal dark:text-slate-500">(40w 0d = full-term)</span>
             </label>
             <div className="grid grid-cols-2 gap-2">
               <div className="relative">
@@ -106,7 +106,7 @@ export function SetupBaby({ onCreated }: { onCreated: (baby: Baby) => void }) {
                   className="input pr-10"
                   aria-label="Weeks at birth"
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 dark:text-slate-500">
                   wks
                 </span>
               </div>
@@ -121,13 +121,13 @@ export function SetupBaby({ onCreated }: { onCreated: (baby: Baby) => void }) {
                   className="input pr-10"
                   aria-label="Days at birth"
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 dark:text-slate-500">
                   days
                 </span>
               </div>
             </div>
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           <button type="submit" disabled={submitting} className="btn-primary w-full">
             {submitting ? 'Saving…' : 'Get started'}
           </button>

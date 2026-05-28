@@ -14,7 +14,7 @@
     overflow-x: hidden;
   }
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
   }
 }
 
@@ -23,24 +23,24 @@
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-700;
+    @apply btn bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-700 dark:bg-brand-500 dark:hover:bg-brand-600 dark:active:bg-brand-600;
   }
   .btn-secondary {
-    @apply btn bg-white text-slate-800 border border-slate-200 hover:bg-slate-50;
+    @apply btn bg-white text-slate-800 border border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-700;
   }
   .btn-ghost {
-    @apply btn text-slate-600 hover:bg-slate-100;
+    @apply btn text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800;
   }
   .card {
-    @apply rounded-2xl bg-white shadow-sm border border-slate-100;
+    @apply rounded-2xl bg-white shadow-sm border border-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:shadow-none;
   }
   .input {
-    @apply block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100;
+    @apply block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand-400 dark:focus:ring-brand-900/40;
   }
   .label {
-    @apply block text-sm font-medium text-slate-700 mb-1.5;
+    @apply block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-200;
   }
-  /* Lightweight markdown styling for Gemini chat replies. Tailwind preflight
+  /* Lightweight markdown styling for chat replies. Tailwind preflight
      strips list markers and heading sizes; restore just what the model
      actually emits. */
   .markdown-body p {
@@ -63,10 +63,10 @@
     @apply list-decimal pl-5 my-1.5 space-y-0.5;
   }
   .markdown-body code {
-    @apply font-mono text-[0.85em] bg-slate-200/70 rounded px-1 py-0.5;
+    @apply font-mono text-[0.85em] bg-slate-200/70 rounded px-1 py-0.5 dark:bg-slate-700/60;
   }
   .markdown-body pre {
-    @apply bg-slate-200/70 rounded-lg p-2 overflow-x-auto my-2;
+    @apply bg-slate-200/70 rounded-lg p-2 overflow-x-auto my-2 dark:bg-slate-800;
   }
   .markdown-body pre code {
     @apply bg-transparent p-0;
@@ -75,13 +75,13 @@
     @apply font-semibold;
   }
   .markdown-body a {
-    @apply text-brand-700 underline;
+    @apply text-brand-700 underline dark:text-brand-300;
   }
   .markdown-body table {
     @apply text-xs my-2 border-collapse;
   }
   .markdown-body th,
   .markdown-body td {
-    @apply border border-slate-200 px-2 py-1 text-left;
+    @apply border border-slate-200 px-2 py-1 text-left dark:border-slate-700;
   }
 }

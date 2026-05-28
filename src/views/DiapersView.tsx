@@ -18,6 +18,7 @@ import { listDiapersSince } from '../lib/api'
 import type { Baby, DiaperEntry, DiaperType } from '../lib/types'
 import { timeSinceShort } from '../lib/format'
 import { useVocab } from '../lib/vocab'
+import { useChartTheme } from '../lib/chartTheme'
 
 type Range = '7d' | '14d' | '30d'
 
@@ -43,6 +44,7 @@ interface DayBucket {
 
 export function DiapersView({ baby }: { baby: Baby }) {
   const { diaper: vocab } = useVocab()
+  const t = useChartTheme()
   const [range, setRange] = useState<Range>('14d')
   const [diapers, setDiapers] = useState<DiaperEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -180,7 +182,7 @@ export function DiapersView({ baby }: { baby: Baby }) {
 
       <section className="card p-3 flex items-center justify-between text-sm">
         <div>
-          <div className="text-xs text-slate-500">Longest dry gap (in range)</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">Longest dry gap (in range)</div>
           <div className="font-medium">
             {longestDryGapHours != null
               ? `${longestDryGapHours.toFixed(1)} h`
@@ -209,17 +211,19 @@ export function DiapersView({ baby }: { baby: Baby }) {
 
       <section>
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide dark:text-slate-400">
             Daily totals
           </h2>
-          <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs">
+          <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs dark:border-slate-700">
             {RANGE_OPTIONS.map((r) => (
               <button
                 key={r.id}
                 type="button"
                 onClick={() => setRange(r.id)}
                 className={`px-3 py-1.5 font-medium ${
-                  range === r.id ? 'bg-brand-600 text-white' : 'bg-white text-slate-600'
+                  range === r.id
+                    ? 'bg-brand-600 text-white dark:bg-brand-500'
+                    : 'bg-white text-slate-600 dark:bg-slate-900 dark:text-slate-300'
                 }`}
               >
                 {r.label}
@@ -229,19 +233,21 @@ export function DiapersView({ baby }: { baby: Baby }) {
         </div>
 
         {loading ? (
-          <div className="card p-6 text-sm text-slate-500 text-center">Loading…</div>
+          <div className="card p-6 text-sm text-slate-500 text-center dark:text-slate-400">Loading…</div>
         ) : diapers.length === 0 ? (
-          <div className="card p-6 text-sm text-slate-500 text-center">
+          <div className="card p-6 text-sm text-slate-500 text-center dark:text-slate-400">
             No diapers in this range.
           </div>
         ) : (
           <div className="space-y-4">
             <ChartCard title="Wet diapers per day">
               <BarChart data={dailyData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-                <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <CartesianGrid stroke={t.grid} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: t.axis }} stroke={t.axis} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.axis} allowDecimals={false} />
                 <Tooltip
+                  contentStyle={{ background: t.tooltipBg, border: `1px solid ${t.tooltipBorder}`, color: t.tooltipText }}
+                  labelStyle={{ color: t.tooltipText }}
                   formatter={(v) => [`${v}`, 'Wet']}
                   labelFormatter={(l, payload) =>
                     payload?.[0]?.payload?.dateISO ?? l
@@ -249,33 +255,35 @@ export function DiapersView({ baby }: { baby: Baby }) {
                 />
                 <ReferenceLine
                   y={WET_TARGET}
-                  stroke="#10b981"
+                  stroke={t.ref.stroke}
                   strokeDasharray="4 4"
                   label={{
                     value: `target ${WET_TARGET}`,
                     position: 'right',
                     fontSize: 10,
-                    fill: '#047857',
+                    fill: t.ref.label,
                   }}
                 />
-                <Bar dataKey="wet" radius={[4, 4, 0, 0]} fill="#0ea5e9" />
+                <Bar dataKey="wet" radius={[4, 4, 0, 0]} fill={t.bars.sky} />
               </BarChart>
             </ChartCard>
 
             <ChartCard title="Diaper mix per day">
               <BarChart data={dailyData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-                <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <CartesianGrid stroke={t.grid} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: t.axis }} stroke={t.axis} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.axis} allowDecimals={false} />
                 <Tooltip
+                  contentStyle={{ background: t.tooltipBg, border: `1px solid ${t.tooltipBorder}`, color: t.tooltipText }}
+                  labelStyle={{ color: t.tooltipText }}
                   labelFormatter={(l, payload) =>
                     payload?.[0]?.payload?.dateISO ?? l
                   }
                 />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="pee" name={vocab.pee} stackId="d" fill="#0ea5e9" />
-                <Bar dataKey="poop" name={vocab.poop} stackId="d" fill="#10b981" />
-                <Bar dataKey="both" name="Both" stackId="d" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                <Legend wrapperStyle={{ fontSize: 11, color: t.legend }} />
+                <Bar dataKey="pee" name={vocab.pee} stackId="d" fill={t.bars.sky} />
+                <Bar dataKey="poop" name={vocab.poop} stackId="d" fill={t.bars.emerald} />
+                <Bar dataKey="both" name="Both" stackId="d" fill={t.bars.amber} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ChartCard>
           </div>
@@ -283,17 +291,19 @@ export function DiapersView({ baby }: { baby: Baby }) {
       </section>
 
       <section>
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2 dark:text-slate-400">
           Daily breakdown
         </h2>
-        <div className="card divide-y divide-slate-100">
+        <div className="card divide-y divide-slate-100 dark:divide-slate-800">
           {dailyData
             .slice()
             .reverse()
             .map((d) => {
               const total = d.pee + d.poop + d.both
               const wetTone =
-                total > 0 && d.wet < WET_TARGET ? 'text-amber-700' : 'text-slate-500'
+                total > 0 && d.wet < WET_TARGET
+                  ? 'text-amber-700 dark:text-amber-400'
+                  : 'text-slate-500 dark:text-slate-400'
               return (
                 <div key={d.dateISO} className="px-4 py-3">
                   <div className="flex items-center justify-between">
@@ -303,7 +313,7 @@ export function DiapersView({ baby }: { baby: Baby }) {
                     </div>
                   </div>
                   {total > 0 && (
-                    <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden flex">
+                    <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden flex dark:bg-slate-800">
                       {d.pee > 0 && (
                         <div className="bg-sky-500" style={{ width: `${(d.pee / total) * 100}%` }} />
                       )}
@@ -356,18 +366,18 @@ function SummaryCard({
   return (
     <div
       className={`card p-3 ${
-        tone === 'amber' ? 'border-amber-200 bg-amber-50/40' : ''
+        tone === 'amber' ? 'border-amber-200 bg-amber-50/40 dark:border-amber-800/40 dark:bg-amber-900/20' : ''
       }`}
     >
-      <div className="text-xs text-slate-500">{label}</div>
+      <div className="text-xs text-slate-500 dark:text-slate-400">{label}</div>
       <div
         className={`text-base font-semibold mt-0.5 ${
-          tone === 'amber' ? 'text-amber-800' : ''
+          tone === 'amber' ? 'text-amber-800 dark:text-amber-300' : ''
         }`}
       >
         {value}
       </div>
-      {sub && <div className="text-[11px] text-slate-400 mt-0.5">{sub}</div>}
+      {sub && <div className="text-[11px] text-slate-400 mt-0.5 dark:text-slate-500">{sub}</div>}
     </div>
   )
 }
@@ -381,7 +391,7 @@ function ChartCard({
 }) {
   return (
     <div className="card p-4">
-      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 dark:text-slate-400">
         {title}
       </h3>
       <div className="h-[180px] -mx-2">

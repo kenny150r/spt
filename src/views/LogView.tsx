@@ -249,35 +249,35 @@ export function LogView({ baby }: { baby: Baby }) {
       </section>
 
       <section>
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2 dark:text-slate-400">
           Quick log
         </h2>
         <div className="grid grid-cols-2 gap-3">
           <BigButton
             label="Feed"
             sub="bottle or breast"
-            color="bg-amber-50 text-amber-900 border-amber-100"
+            color="bg-amber-50 text-amber-900 border-amber-100 dark:bg-amber-900/30 dark:text-amber-100 dark:border-amber-800/40"
             icon={<Milk className="h-5 w-5" />}
             onClick={() => setSheet({ kind: 'feed' })}
           />
           <BigButton
             label="Diaper"
             sub={`${vocab.peeLower}, ${vocab.poopLower}, or both`}
-            color="bg-sky-50 text-sky-900 border-sky-100"
+            color="bg-sky-50 text-sky-900 border-sky-100 dark:bg-sky-900/30 dark:text-sky-100 dark:border-sky-800/40"
             icon={<Droplet className="h-5 w-5" />}
             onClick={() => setSheet({ kind: 'diaper' })}
           />
           <BigButton
             label="Pump"
             sub="left / right output"
-            color="bg-teal-50 text-teal-900 border-teal-100"
+            color="bg-teal-50 text-teal-900 border-teal-100 dark:bg-teal-900/30 dark:text-teal-100 dark:border-teal-800/40"
             icon={<Wind className="h-5 w-5" />}
             onClick={() => setSheet({ kind: 'pump' })}
           />
           <BigButton
             label="Weight"
             sub="growth check"
-            color="bg-violet-50 text-violet-900 border-violet-100"
+            color="bg-violet-50 text-violet-900 border-violet-100 dark:bg-violet-900/30 dark:text-violet-100 dark:border-violet-800/40"
             icon={<Scale className="h-5 w-5" />}
             onClick={() => setSheet({ kind: 'weight' })}
           />
@@ -290,11 +290,11 @@ export function LogView({ baby }: { baby: Baby }) {
 
       <section>
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide dark:text-slate-400">
             Recent activity
           </h2>
           <div
-            className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs"
+            className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs dark:border-slate-700"
             role="tablist"
             aria-label="Recent activity layout"
           >
@@ -314,9 +314,9 @@ export function LogView({ baby }: { baby: Baby }) {
         </div>
 
         {loading ? (
-          <div className="card px-4 py-6 text-sm text-slate-500 text-center">Loading…</div>
+          <div className="card px-4 py-6 text-sm text-slate-500 text-center dark:text-slate-400">Loading…</div>
         ) : visible.length === 0 ? (
-          <div className="card px-4 py-6 text-sm text-slate-500 text-center">
+          <div className="card px-4 py-6 text-sm text-slate-500 text-center dark:text-slate-400">
             No entries yet. Tap a quick log button above to get started.
           </div>
         ) : viewMode === 'cards' ? (
@@ -343,7 +343,7 @@ export function LogView({ baby }: { baby: Baby }) {
               type="button"
               onClick={onSeeMore}
               disabled={loadingMore}
-              className="text-sm px-4 py-2 rounded-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              className="text-sm px-4 py-2 rounded-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               {loadingMore ? 'Loading…' : `See more (${visible.length} shown)`}
             </button>
@@ -484,7 +484,7 @@ function rowVisuals(item: AnyEntry, vocab: DiaperVocab): RowVisuals {
             item.side ? ` (${item.side})` : ''
           }${suppStr}`
     return {
-      icon: <Milk className="h-4 w-4 text-amber-700" />,
+      icon: <Milk className="h-4 w-4 text-amber-700 dark:text-amber-400" />,
       title,
       time: item.fed_at,
       typeLabel: item.type === 'bottle' ? 'Bottle' : 'Breast',
@@ -493,11 +493,11 @@ function rowVisuals(item: AnyEntry, vocab: DiaperVocab): RowVisuals {
   if (item.kind === 'diaper') {
     const icon =
       item.type === 'pee' ? (
-        <Droplet className="h-4 w-4 text-sky-700" />
+        <Droplet className="h-4 w-4 text-sky-700 dark:text-sky-400" />
       ) : item.type === 'poop' ? (
-        <BabyIcon className="h-4 w-4 text-emerald-700" />
+        <BabyIcon className="h-4 w-4 text-emerald-700 dark:text-emerald-400" />
       ) : (
-        <Droplet className="h-4 w-4 text-emerald-700" />
+        <Droplet className="h-4 w-4 text-emerald-700 dark:text-emerald-400" />
       )
     const baseLabel = diaperTypeLabel(item.type, vocab)
     const sizeStr = item.size ? ` · ${item.size}` : ''
@@ -516,7 +516,7 @@ function rowVisuals(item: AnyEntry, vocab: DiaperVocab): RowVisuals {
         ? ` (L ${Math.round(item.left_ml ?? 0)} / R ${Math.round(item.right_ml ?? 0)})`
         : ''
     return {
-      icon: <Wind className="h-4 w-4 text-teal-700" />,
+      icon: <Wind className="h-4 w-4 text-teal-700 dark:text-teal-400" />,
       title: `Pump (${item.side})${ml}${split}${dur}`,
       time: item.pumped_at,
       typeLabel: 'Pump',
@@ -527,14 +527,14 @@ function rowVisuals(item: AnyEntry, vocab: DiaperVocab): RowVisuals {
       Boolean,
     ) as string[]
     return {
-      icon: <Pill className="h-4 w-4 text-rose-700" />,
+      icon: <Pill className="h-4 w-4 text-rose-700 dark:text-rose-400" />,
       title: `Supplement · ${parts.join(' + ')}`,
       time: item.given_at,
       typeLabel: 'Supplement',
     }
   }
   return {
-    icon: <Scale className="h-4 w-4 text-violet-700" />,
+    icon: <Scale className="h-4 w-4 text-violet-700 dark:text-violet-400" />,
     title: `Weight · ${formatWeight(item.weight_kg, 'imperial')}`,
     time: item.measured_at,
     typeLabel: 'Weight',
@@ -608,7 +608,7 @@ function CardList({
   onDelete: (item: AnyEntry) => void
 }) {
   return (
-    <div className="card divide-y divide-slate-100">
+    <div className="card divide-y divide-slate-100 dark:divide-slate-800">
       {items.map((item) => (
         <ActivityRow
           key={`${item.kind}:${item.id}`}
@@ -646,20 +646,20 @@ function ActivityRow({
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-slate-50"
+        className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-slate-50 dark:active:bg-slate-800"
       >
-        <div className="h-8 w-8 rounded-lg bg-slate-50 grid place-items-center shrink-0">
+        <div className="h-8 w-8 rounded-lg bg-slate-50 grid place-items-center shrink-0 dark:bg-slate-800">
           {v.icon}
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium truncate">{v.title}</div>
-          <div className="text-xs text-slate-500 truncate">
+          <div className="text-xs text-slate-500 truncate dark:text-slate-400">
             {formatDateTime(v.time)} · {timeSince(v.time)}
             {notes ? ` · ${notes}` : ''}
           </div>
         </div>
         <ChevronDown
-          className={`h-4 w-4 text-slate-400 shrink-0 transition-transform ${
+          className={`h-4 w-4 text-slate-400 shrink-0 transition-transform dark:text-slate-500 ${
             expanded ? 'rotate-180' : ''
           }`}
         />
@@ -692,26 +692,26 @@ function ExpandedDetails({
   const v = rowVisuals(item, vocab)
   const details = entryDetails(item, vocab)
   return (
-    <div className="px-4 pb-4 -mt-1 space-y-3 bg-slate-50/60">
-      <div className="text-xs text-slate-500">
+    <div className="px-4 pb-4 -mt-1 space-y-3 bg-slate-50/60 dark:bg-slate-800/40">
+      <div className="text-xs text-slate-500 dark:text-slate-400">
         {formatDateTime(v.time)} · {timeSince(v.time)}
       </div>
       {details.length > 0 && (
         <dl className="space-y-1 text-sm">
           {details.map((d) => (
             <div key={d.label} className="flex items-baseline justify-between gap-3">
-              <dt className="text-slate-500 shrink-0">{d.label}</dt>
-              <dd className="text-slate-800 font-medium text-right capitalize">{d.value}</dd>
+              <dt className="text-slate-500 shrink-0 dark:text-slate-400">{d.label}</dt>
+              <dd className="text-slate-800 font-medium text-right capitalize dark:text-slate-100">{d.value}</dd>
             </div>
           ))}
         </dl>
       )}
       <div>
-        <div className="text-xs text-slate-500 mb-0.5">Notes</div>
+        <div className="text-xs text-slate-500 mb-0.5 dark:text-slate-400">Notes</div>
         {notes ? (
-          <div className="text-sm whitespace-pre-wrap break-words text-slate-800">{notes}</div>
+          <div className="text-sm whitespace-pre-wrap break-words text-slate-800 dark:text-slate-100">{notes}</div>
         ) : (
-          <div className="text-sm italic text-slate-400">No notes</div>
+          <div className="text-sm italic text-slate-400 dark:text-slate-500">No notes</div>
         )}
       </div>
       <div className="flex gap-2 pt-1">
@@ -725,7 +725,7 @@ function ExpandedDetails({
         <button
           type="button"
           onClick={onDelete}
-          className="btn-secondary flex-1 inline-flex items-center justify-center gap-1.5 text-red-600 hover:bg-red-50 hover:border-red-200"
+          className="btn-secondary flex-1 inline-flex items-center justify-center gap-1.5 text-red-600 hover:bg-red-50 hover:border-red-200 dark:text-red-400 dark:hover:bg-red-900/30 dark:hover:border-red-800/40"
         >
           <Trash2 className="h-4 w-4" /> Delete
         </button>
@@ -754,7 +754,7 @@ function TableList({
     <div className="card overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
-          <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wide">
+          <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wide dark:bg-slate-800/60 dark:text-slate-400">
             <tr>
               <th className="text-left font-medium px-3 py-2 w-[36%]">When</th>
               <th className="text-left font-medium px-3 py-2 w-[22%]">Type</th>
@@ -762,7 +762,7 @@ function TableList({
               <th className="px-2 py-2 w-8" aria-label="Expand"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {items.map((item) => {
               const v = rowVisuals(item, vocab)
               const notes = entryNotes(item)
@@ -808,34 +808,34 @@ function FragmentRow({
     <>
       <tr
         onClick={onToggle}
-        className="cursor-pointer hover:bg-slate-50 active:bg-slate-100"
+        className="cursor-pointer hover:bg-slate-50 active:bg-slate-100 dark:hover:bg-slate-800 dark:active:bg-slate-700"
       >
         <td className="px-3 py-2 align-top">
-          <div className="text-slate-800">{formatDateTime(visuals.time)}</div>
-          <div className="text-[11px] text-slate-500">{timeSince(visuals.time)}</div>
+          <div className="text-slate-800 dark:text-slate-100">{formatDateTime(visuals.time)}</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400">{timeSince(visuals.time)}</div>
         </td>
         <td className="px-3 py-2 align-top">
           <div className="inline-flex items-center gap-1.5">
-            <span className="h-5 w-5 rounded bg-slate-50 grid place-items-center">
+            <span className="h-5 w-5 rounded bg-slate-50 grid place-items-center dark:bg-slate-800">
               {visuals.icon}
             </span>
-            <span className="text-slate-700">{visuals.typeLabel}</span>
+            <span className="text-slate-700 dark:text-slate-200">{visuals.typeLabel}</span>
           </div>
         </td>
-        <td className="px-3 py-2 align-top text-slate-700">
+        <td className="px-3 py-2 align-top text-slate-700 dark:text-slate-200">
           <div className="line-clamp-2 break-words">{visuals.title.replace(/^[^·]+· /, '')}</div>
           {notes && (
-            <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{notes}</div>
+            <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5 dark:text-slate-400">{notes}</div>
           )}
         </td>
-        <td className="px-2 py-2 align-top text-slate-400">
+        <td className="px-2 py-2 align-top text-slate-400 dark:text-slate-500">
           <ChevronDown
             className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
           />
         </td>
       </tr>
       {expanded && (
-        <tr className="bg-slate-50/60">
+        <tr className="bg-slate-50/60 dark:bg-slate-800/40">
           <td colSpan={4} className="px-3 py-3">
             <ExpandedDetails
               item={item}
@@ -870,7 +870,9 @@ function ViewToggleButton({
       role="tab"
       aria-selected={active}
       className={`px-2.5 py-1 font-medium inline-flex items-center gap-1.5 ${
-        active ? 'bg-brand-600 text-white' : 'bg-white text-slate-600'
+        active
+          ? 'bg-brand-600 text-white dark:bg-brand-500'
+          : 'bg-white text-slate-600 dark:bg-slate-900 dark:text-slate-300'
       }`}
     >
       {icon}
@@ -890,7 +892,7 @@ function SummaryCard({
 }) {
   return (
     <div className="card p-3">
-      <div className="text-xs text-slate-500 flex items-center gap-1.5">
+      <div className="text-xs text-slate-500 flex items-center gap-1.5 dark:text-slate-400">
         {icon}
         <span className="truncate">{label}</span>
       </div>
@@ -918,7 +920,7 @@ function BigButton({
       onClick={onClick}
       className={`p-4 rounded-2xl border text-left flex items-start gap-3 active:scale-[0.99] transition-transform ${color}`}
     >
-      <div className="h-10 w-10 rounded-xl bg-white/70 grid place-items-center">
+      <div className="h-10 w-10 rounded-xl bg-white/70 grid place-items-center dark:bg-slate-950/40">
         {icon}
       </div>
       <div className="min-w-0">
@@ -946,12 +948,12 @@ function SupplementsButton({
       onClick={onClick}
       className={`p-4 rounded-2xl border text-left flex items-start gap-3 active:scale-[0.99] transition-transform col-span-2 ${
         allDone
-          ? 'bg-emerald-50 text-emerald-900 border-emerald-100'
-          : 'bg-rose-50 text-rose-900 border-rose-100'
+          ? 'bg-emerald-50 text-emerald-900 border-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-100 dark:border-emerald-800/40'
+          : 'bg-rose-50 text-rose-900 border-rose-100 dark:bg-rose-900/30 dark:text-rose-100 dark:border-rose-800/40'
       }`}
       aria-label="Log supplements"
     >
-      <div className="h-10 w-10 rounded-xl bg-white/70 grid place-items-center">
+      <div className="h-10 w-10 rounded-xl bg-white/70 grid place-items-center dark:bg-slate-950/40">
         <Pill className="h-5 w-5" />
       </div>
       <div className="min-w-0 flex-1">
@@ -974,12 +976,16 @@ function SupplementLine({ name, given }: { name: string; given: boolean }) {
   return (
     <div
       className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${
-        given ? 'bg-emerald-100 text-emerald-800' : 'bg-white/70 text-slate-600'
+        given
+          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-100'
+          : 'bg-white/70 text-slate-600 dark:bg-slate-950/40 dark:text-slate-300'
       }`}
     >
       <span
         className={`h-3.5 w-3.5 rounded-full grid place-items-center text-[10px] leading-none font-bold ${
-          given ? 'bg-emerald-600 text-white' : 'border border-slate-300 bg-white text-slate-400'
+          given
+            ? 'bg-emerald-600 text-white dark:bg-emerald-500'
+            : 'border border-slate-300 bg-white text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-500'
         }`}
       >
         {given ? '✓' : ''}

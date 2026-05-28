@@ -17,6 +17,7 @@ import {
 } from 'recharts'
 import { listFeedsSince, listSupplementsSince } from '../lib/api'
 import type { Baby, FeedEntry, FeedType, SupplementEntry } from '../lib/types'
+import { useChartTheme } from '../lib/chartTheme'
 
 type Range = '7d' | '14d' | '30d'
 
@@ -48,6 +49,7 @@ interface HourBinBucket {
 const DEFAULT_BREAST_ML_PER_MIN = 20
 
 export function FeedingView({ baby }: { baby: Baby }) {
+  const t = useChartTheme()
   const [range, setRange] = useState<Range>('14d')
   const [feeds, setFeeds] = useState<FeedEntry[]>([])
   const [supplements, setSupplements] = useState<SupplementEntry[]>([])
@@ -243,17 +245,19 @@ export function FeedingView({ baby }: { baby: Baby }) {
 
       <section>
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide dark:text-slate-400">
             Daily totals
           </h2>
-          <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs">
+          <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs dark:border-slate-700">
             {RANGE_OPTIONS.map((r) => (
               <button
                 key={r.id}
                 type="button"
                 onClick={() => setRange(r.id)}
                 className={`px-3 py-1.5 font-medium ${
-                  range === r.id ? 'bg-brand-600 text-white' : 'bg-white text-slate-600'
+                  range === r.id
+                    ? 'bg-brand-600 text-white dark:bg-brand-500'
+                    : 'bg-white text-slate-600 dark:bg-slate-900 dark:text-slate-300'
                 }`}
               >
                 {r.label}
@@ -263,50 +267,56 @@ export function FeedingView({ baby }: { baby: Baby }) {
         </div>
 
         {loading ? (
-          <div className="card p-6 text-sm text-slate-500 text-center">Loading…</div>
+          <div className="card p-6 text-sm text-slate-500 text-center dark:text-slate-400">Loading…</div>
         ) : feeds.length === 0 ? (
-          <div className="card p-6 text-sm text-slate-500 text-center">
+          <div className="card p-6 text-sm text-slate-500 text-center dark:text-slate-400">
             No feeds in this range.
           </div>
         ) : (
           <div className="space-y-4">
             <ChartCard title="Bottle intake (mL/day)">
               <BarChart data={dailyData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-                <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 11 }} />
+                <CartesianGrid stroke={t.grid} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: t.axis }} stroke={t.axis} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.axis} />
                 <Tooltip
+                  contentStyle={{ background: t.tooltipBg, border: `1px solid ${t.tooltipBorder}`, color: t.tooltipText }}
+                  labelStyle={{ color: t.tooltipText }}
                   formatter={(v) => [`${Math.round(Number(v))} mL`, 'Bottle']}
                   labelFormatter={(l, payload) =>
                     payload?.[0]?.payload?.dateISO ?? l
                   }
                 />
-                <Bar dataKey="bottleMl" radius={[4, 4, 0, 0]} fill="#2563eb" />
+                <Bar dataKey="bottleMl" radius={[4, 4, 0, 0]} fill={t.bars.blue} />
               </BarChart>
             </ChartCard>
 
             <ChartCard title="Feed mix (count per day)">
               <BarChart data={dailyData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-                <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <CartesianGrid stroke={t.grid} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: t.axis }} stroke={t.axis} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.axis} allowDecimals={false} />
                 <Tooltip
+                  contentStyle={{ background: t.tooltipBg, border: `1px solid ${t.tooltipBorder}`, color: t.tooltipText }}
+                  labelStyle={{ color: t.tooltipText }}
                   labelFormatter={(l, payload) =>
                     payload?.[0]?.payload?.dateISO ?? l
                   }
                 />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="bottleCount" name="Bottle" stackId="m" fill="#2563eb" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="breastCount" name="Breast" stackId="m" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                <Legend wrapperStyle={{ fontSize: 11, color: t.legend }} />
+                <Bar dataKey="bottleCount" name="Bottle" stackId="m" fill={t.bars.blue} radius={[0, 0, 0, 0]} />
+                <Bar dataKey="breastCount" name="Breast" stackId="m" fill={t.bars.amber} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ChartCard>
 
             <ChartCard title="Breast time (min/day)">
               <BarChart data={dailyData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-                <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 11 }} />
+                <CartesianGrid stroke={t.grid} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: t.axis }} stroke={t.axis} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11, fill: t.axis }} stroke={t.axis} />
                 <Tooltip
+                  contentStyle={{ background: t.tooltipBg, border: `1px solid ${t.tooltipBorder}`, color: t.tooltipText }}
+                  labelStyle={{ color: t.tooltipText }}
                   formatter={(v) => [`${Math.round(Number(v))} min`, 'Breast']}
                   labelFormatter={(l, payload) =>
                     payload?.[0]?.payload?.dateISO ?? l
@@ -314,7 +324,7 @@ export function FeedingView({ baby }: { baby: Baby }) {
                 />
                 <Bar dataKey="breastMin" radius={[4, 4, 0, 0]}>
                   {dailyData.map((d) => (
-                    <Cell key={d.dateISO} fill="#f59e0b" />
+                    <Cell key={d.dateISO} fill={t.bars.amber} />
                   ))}
                 </Bar>
               </BarChart>
@@ -324,7 +334,7 @@ export function FeedingView({ baby }: { baby: Baby }) {
       </section>
 
       <section>
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2 dark:text-slate-400">
           Hourly pattern · today vs 7-day avg
         </h2>
         <div className="card p-4">
@@ -334,18 +344,22 @@ export function FeedingView({ baby }: { baby: Baby }) {
                 data={hourlyData}
                 margin={{ top: 8, right: 12, left: 0, bottom: 4 }}
               >
-                <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
+                <CartesianGrid stroke={t.grid} strokeDasharray="3 3" vertical={false} />
                 <XAxis
                   dataKey="label"
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 11, fill: t.axis }}
+                  stroke={t.axis}
                   interval={0}
                 />
                 <YAxis
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 11, fill: t.axis }}
+                  stroke={t.axis}
                   unit=" mL"
                   width={56}
                 />
                 <Tooltip
+                  contentStyle={{ background: t.tooltipBg, border: `1px solid ${t.tooltipBorder}`, color: t.tooltipText }}
+                  labelStyle={{ color: t.tooltipText }}
                   formatter={(v, n) => [
                     `${Math.round(Number(v))} mL`,
                     n === 'todayMl' ? 'Today' : '7-day avg',
@@ -356,26 +370,26 @@ export function FeedingView({ baby }: { baby: Baby }) {
                 />
                 <Legend
                   verticalAlign="top"
-                  wrapperStyle={{ fontSize: 11, paddingBottom: 4 }}
+                  wrapperStyle={{ fontSize: 11, paddingBottom: 4, color: t.legend }}
                 />
                 <Bar
                   dataKey="todayMl"
                   name="Today"
-                  fill="#2563eb"
+                  fill={t.bars.blue}
                   radius={[4, 4, 0, 0]}
                 />
                 <Line
                   type="monotone"
                   dataKey="avgMl"
                   name="7-day avg"
-                  stroke="#f59e0b"
+                  stroke={t.bars.amber}
                   strokeWidth={2}
-                  dot={{ r: 3, fill: '#f59e0b', strokeWidth: 0 }}
+                  dot={{ r: 3, fill: t.bars.amber, strokeWidth: 0 }}
                 />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
-          <p className="text-[11px] text-slate-400 text-center mt-1">
+          <p className="text-[11px] text-slate-400 text-center mt-1 dark:text-slate-500">
             3-hour bins · breast time → mL via {breastFactor} mL/min
             (Settings).
           </p>
@@ -383,7 +397,7 @@ export function FeedingView({ baby }: { baby: Baby }) {
       </section>
 
       <section>
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2 dark:text-slate-400">
           Past 24 hours · feed timeline
         </h2>
         <div className="card p-4">
@@ -391,7 +405,7 @@ export function FeedingView({ baby }: { baby: Baby }) {
             <ResponsiveContainer width="100%" height="100%">
               <ScatterChart margin={{ top: 16, right: 12, left: 4, bottom: 8 }}>
                 <CartesianGrid
-                  stroke="#eef2f7"
+                  stroke={t.grid}
                   strokeDasharray="3 3"
                   horizontal={false}
                 />
@@ -401,7 +415,8 @@ export function FeedingView({ baby }: { baby: Baby }) {
                   domain={[-24, 0]}
                   ticks={[-24, -18, -12, -6, 0]}
                   tickFormatter={(h) => formatTickFromHoursAgo(Number(h))}
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 11, fill: t.axis }}
+                  stroke={t.axis}
                   allowDataOverflow
                 />
                 <YAxis
@@ -411,38 +426,38 @@ export function FeedingView({ baby }: { baby: Baby }) {
                   domain={[-1, 1]}
                 />
                 <Tooltip
-                  cursor={{ stroke: '#cbd5e1', strokeDasharray: '3 3' }}
+                  cursor={{ stroke: t.cursor, strokeDasharray: '3 3' }}
                   content={<FeedEventTooltip />}
                 />
                 <Legend
                   verticalAlign="top"
-                  wrapperStyle={{ fontSize: 11, paddingBottom: 4 }}
+                  wrapperStyle={{ fontSize: 11, paddingBottom: 4, color: t.legend }}
                 />
                 <Scatter
                   name="Bottle"
                   data={bottleEvents}
-                  fill="#2563eb"
+                  fill={t.bars.blue}
                   shape={(props: object) => (
-                    <FeedDot {...(props as DotProps)} color="#2563eb" />
+                    <FeedDot {...(props as DotProps)} color={t.bars.blue} />
                   )}
                 />
                 <Scatter
                   name="Breast"
                   data={breastEvents}
-                  fill="#f59e0b"
+                  fill={t.bars.amber}
                   shape={(props: object) => (
-                    <FeedDot {...(props as DotProps)} color="#f59e0b" />
+                    <FeedDot {...(props as DotProps)} color={t.bars.amber} />
                   )}
                 />
               </ScatterChart>
             </ResponsiveContainer>
           </div>
           {last24hEvents.length === 0 ? (
-            <p className="text-[11px] text-slate-400 text-center mt-1">
+            <p className="text-[11px] text-slate-400 text-center mt-1 dark:text-slate-500">
               No feeds in the past 24 hours.
             </p>
           ) : (
-            <p className="text-[11px] text-slate-400 text-center mt-1">
+            <p className="text-[11px] text-slate-400 text-center mt-1 dark:text-slate-500">
               {last24hEvents.length} feed{last24hEvents.length === 1 ? '' : 's'}
               {' · '}larger / darker = more volume
             </p>
@@ -452,10 +467,10 @@ export function FeedingView({ baby }: { baby: Baby }) {
 
       <section>
         <div className="flex items-baseline justify-between mb-2">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide dark:text-slate-400">
             Supplements
           </h2>
-          <span className="text-[11px] text-slate-400">
+          <span className="text-[11px] text-slate-400 dark:text-slate-500">
             both once daily
           </span>
         </div>
@@ -474,7 +489,7 @@ export function FeedingView({ baby }: { baby: Baby }) {
               field="iron"
             />
           </div>
-          <div className="flex justify-between text-[10px] text-slate-400 mt-2 px-0.5">
+          <div className="flex justify-between text-[10px] text-slate-400 mt-2 px-0.5 dark:text-slate-500">
             <span>{dailyData[0]?.dateISO ?? ''}</span>
             <span>today</span>
           </div>
@@ -482,10 +497,10 @@ export function FeedingView({ baby }: { baby: Baby }) {
       </section>
 
       <section>
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2 dark:text-slate-400">
           Daily breakdown
         </h2>
-        <div className="card divide-y divide-slate-100">
+        <div className="card divide-y divide-slate-100 dark:divide-slate-800">
           {dailyData
             .slice()
             .reverse()
@@ -496,18 +511,18 @@ export function FeedingView({ baby }: { baby: Baby }) {
                 <div key={d.dateISO} className="px-4 py-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-sm font-medium truncate">{d.dateISO}</div>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0 dark:text-slate-400">
                       <SupplementBadge label="Vit" given={d.multivitamin} />
                       <SupplementBadge label="Fe" given={d.iron} />
                       <span>· {total} feed{total === 1 ? '' : 's'}</span>
                     </div>
                   </div>
-                  <div className="text-xs text-slate-500 mt-0.5">
+                  <div className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">
                     {Math.round(d.bottleMl)} mL bottle · {Math.round(d.breastMin)} min breast
                     {total > 0 && ` · ${Math.round(breastPct)}% breast`}
                   </div>
                   {total > 0 && (
-                    <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden flex">
+                    <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden flex dark:bg-slate-800">
                       <div
                         className="bg-blue-500"
                         style={{
@@ -540,9 +555,9 @@ function SummaryCard({
 }) {
   return (
     <div className="card p-3">
-      <div className="text-xs text-slate-500">{label}</div>
+      <div className="text-xs text-slate-500 dark:text-slate-400">{label}</div>
       <div className="text-base font-semibold mt-0.5">{value}</div>
-      {sub && <div className="text-[11px] text-slate-400 mt-0.5">{sub}</div>}
+      {sub && <div className="text-[11px] text-slate-400 mt-0.5 dark:text-slate-500">{sub}</div>}
     </div>
   )
 }
@@ -572,7 +587,7 @@ function SupplementStrip({
   const todayKey = format(new Date(), 'yyyy-MM-dd')
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs font-medium text-slate-600 w-20 shrink-0">
+      <span className="text-xs font-medium text-slate-600 w-20 shrink-0 dark:text-slate-300">
         {label}
       </span>
       <div className="flex flex-1 gap-0.5">
@@ -584,8 +599,8 @@ function SupplementStrip({
               key={d.dateISO}
               title={`${d.dateISO}: ${given ? 'given' : 'not logged'}`}
               className={`flex-1 h-3.5 rounded-sm ${
-                given ? color : 'bg-slate-100'
-              } ${isToday ? 'ring-2 ring-offset-1 ring-slate-400' : ''}`}
+                given ? color : 'bg-slate-100 dark:bg-slate-800'
+              } ${isToday ? 'ring-2 ring-offset-1 ring-slate-400 dark:ring-slate-500 dark:ring-offset-slate-900' : ''}`}
             />
           )
         })}
@@ -598,7 +613,9 @@ function SupplementBadge({ label, given }: { label: string; given: boolean }) {
   return (
     <span
       className={`inline-flex items-center justify-center rounded text-[10px] font-semibold leading-none px-1 py-0.5 ${
-        given ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'
+        given
+          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-100'
+          : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'
       }`}
       title={given ? `${label}: logged` : `${label}: not logged`}
     >
@@ -666,16 +683,16 @@ function FeedEventTooltip({
       ? `${Math.round(ago * 60)}m ago`
       : `${Math.floor(ago)}h ${Math.round((ago - Math.floor(ago)) * 60)}m ago`
   return (
-    <div className="rounded-md bg-white shadow-md border border-slate-200 px-2.5 py-1.5 text-xs">
+    <div className="rounded-md bg-white shadow-md border border-slate-200 px-2.5 py-1.5 text-xs dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100">
       <div className="font-medium">
         {p.type === 'bottle' ? 'Bottle' : 'Breast'} · {clock}
       </div>
-      <div className="text-slate-500">{agoLabel}</div>
+      <div className="text-slate-500 dark:text-slate-400">{agoLabel}</div>
       {p.type === 'bottle' && p.amountMl != null && (
-        <div className="text-slate-500">{Math.round(p.amountMl)} mL</div>
+        <div className="text-slate-500 dark:text-slate-400">{Math.round(p.amountMl)} mL</div>
       )}
       {p.type === 'breast' && (
-        <div className="text-slate-500">
+        <div className="text-slate-500 dark:text-slate-400">
           {p.durationMin ?? 0} min · ~{Math.round(p.volumeMl)} mL est.
         </div>
       )}
@@ -692,7 +709,7 @@ function formatTickFromHoursAgo(h: number): string {
 function ChartCard({ title, children }: { title: string; children: React.ReactElement }) {
   return (
     <div className="card p-4">
-      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 dark:text-slate-400">
         {title}
       </h3>
       <div className="h-[180px] -mx-2">

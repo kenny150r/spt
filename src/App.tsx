@@ -16,8 +16,17 @@ import { AskView } from './views/AskView'
 import { SettingsView } from './views/SettingsView'
 import { MissingConfig } from './components/MissingConfig'
 import { VocabProvider } from './lib/vocab'
+import { ThemeProvider } from './lib/theme'
 
 function App() {
+  return (
+    <ThemeProvider>
+      <AppInner />
+    </ThemeProvider>
+  )
+}
+
+function AppInner() {
   const [bootstrapped, setBootstrapped] = useState(false)
   const [session, setSession] = useState<Session | null>(null)
   const [baby, setBaby] = useState<Baby | null>(null)
@@ -80,7 +89,7 @@ function App() {
 
 function Splash() {
   return (
-    <div className="min-h-dvh grid place-items-center text-slate-400 text-sm">
+    <div className="min-h-dvh grid place-items-center text-slate-400 text-sm dark:text-slate-500">
       Loading…
     </div>
   )

@@ -101,7 +101,7 @@ export function AddSupplementForm({
         />
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <div className="flex gap-2 pt-1">
         <button type="button" onClick={onCancel} className="btn-secondary flex-1">
@@ -133,8 +133,8 @@ function BigToggle({
       aria-pressed={checked}
       className={`p-3 rounded-2xl border text-left active:scale-[0.99] transition-transform ${
         checked
-          ? 'bg-emerald-600 text-white border-emerald-600'
-          : 'bg-white border-slate-200 text-slate-700'
+          ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:border-emerald-500'
+          : 'bg-white border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200'
       }`}
     >
       <div className="text-sm font-semibold leading-tight">
@@ -143,7 +143,7 @@ function BigToggle({
       </div>
       <div
         className={`text-[11px] mt-0.5 ${
-          checked ? 'opacity-90' : 'text-slate-500'
+          checked ? 'opacity-90' : 'text-slate-500 dark:text-slate-400'
         }`}
       >
         {sub}

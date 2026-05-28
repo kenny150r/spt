@@ -153,8 +153,8 @@ export function AskView({ baby }: { baby: Baby }) {
       <section className="card p-3">
         <div className="flex items-center justify-between gap-2 mb-2">
           <div className="flex items-center gap-2 min-w-0">
-            <Sparkles className="h-4 w-4 text-brand-600 shrink-0" />
-            <h2 className="text-sm font-semibold text-slate-700 truncate">
+            <Sparkles className="h-4 w-4 text-brand-600 shrink-0 dark:text-brand-400" />
+            <h2 className="text-sm font-semibold text-slate-700 truncate dark:text-slate-200">
               Ask about {baby.name}'s data
             </h2>
           </div>
@@ -162,7 +162,7 @@ export function AskView({ baby }: { baby: Baby }) {
             <button
               type="button"
               onClick={clearChat}
-              className="btn-ghost text-xs text-slate-500"
+              className="btn-ghost text-xs text-slate-500 dark:text-slate-400"
               aria-label="Clear conversation"
               title="Clear conversation"
             >
@@ -171,8 +171,8 @@ export function AskView({ baby }: { baby: Baby }) {
           )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[11px] text-slate-500 shrink-0">Window</span>
-          <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs">
+          <span className="text-[11px] text-slate-500 shrink-0 dark:text-slate-400">Window</span>
+          <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs dark:border-slate-700">
             {RANGES.map((r) => (
               <button
                 key={r.id}
@@ -180,17 +180,17 @@ export function AskView({ baby }: { baby: Baby }) {
                 onClick={() => setRange(r.id)}
                 className={`px-2.5 py-1 font-medium ${
                   range === r.id
-                    ? 'bg-brand-600 text-white'
-                    : 'bg-white text-slate-600'
+                    ? 'bg-brand-600 text-white dark:bg-brand-500'
+                    : 'bg-white text-slate-600 dark:bg-slate-900 dark:text-slate-300'
                 }`}
               >
                 {r.label}
               </button>
             ))}
           </div>
-          <span className="text-[11px] text-slate-500 shrink-0 ml-1">Mode</span>
+          <span className="text-[11px] text-slate-500 shrink-0 ml-1 dark:text-slate-400">Mode</span>
           <div
-            className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs"
+            className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs dark:border-slate-700"
             role="tablist"
             aria-label="Reasoning mode"
           >
@@ -200,7 +200,9 @@ export function AskView({ baby }: { baby: Baby }) {
               aria-selected={mode === 'fast'}
               onClick={() => setMode('fast')}
               className={`px-2.5 py-1 font-medium ${
-                mode === 'fast' ? 'bg-brand-600 text-white' : 'bg-white text-slate-600'
+                mode === 'fast'
+                  ? 'bg-brand-600 text-white dark:bg-brand-500'
+                  : 'bg-white text-slate-600 dark:bg-slate-900 dark:text-slate-300'
               }`}
               title="No reasoning step — instant, cheapest, great for simple lookups"
             >
@@ -212,7 +214,9 @@ export function AskView({ baby }: { baby: Baby }) {
               aria-selected={mode === 'deep'}
               onClick={() => setMode('deep')}
               className={`px-2.5 py-1 font-medium ${
-                mode === 'deep' ? 'bg-brand-600 text-white' : 'bg-white text-slate-600'
+                mode === 'deep'
+                  ? 'bg-brand-600 text-white dark:bg-brand-500'
+                  : 'bg-white text-slate-600 dark:bg-slate-900 dark:text-slate-300'
               }`}
               title="Adds bounded reasoning — better for trends, comparisons, outlier hunting"
             >
@@ -227,8 +231,8 @@ export function AskView({ baby }: { baby: Baby }) {
         className="card p-3 min-h-[280px] max-h-[60vh] overflow-y-auto space-y-3"
       >
         {messages.length === 0 && !submitting && (
-          <div className="text-center py-6 text-sm text-slate-500 space-y-3">
-            <Sparkles className="h-6 w-6 mx-auto text-brand-500" />
+          <div className="text-center py-6 text-sm text-slate-500 space-y-3 dark:text-slate-400">
+            <Sparkles className="h-6 w-6 mx-auto text-brand-500 dark:text-brand-400" />
             <div>Ask anything about the data — I have full access to the logs.</div>
           </div>
         )}
@@ -241,7 +245,7 @@ export function AskView({ baby }: { baby: Baby }) {
         })}
 
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 text-red-800 text-xs px-3 py-2">
+          <div className="rounded-xl border border-red-200 bg-red-50 text-red-800 text-xs px-3 py-2 dark:border-red-800/50 dark:bg-red-900/30 dark:text-red-200">
             <div className="font-medium">Couldn't reach Gemini</div>
             <div className="opacity-80 break-words">{error}</div>
           </div>
@@ -256,7 +260,7 @@ export function AskView({ baby }: { baby: Baby }) {
               type="button"
               onClick={() => send(s)}
               disabled={submitting}
-              className="text-xs px-2.5 py-1.5 rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              className="text-xs px-2.5 py-1.5 rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
             >
               {s}
             </button>
@@ -309,17 +313,17 @@ function Bubble({ msg, pending = false }: { msg: ChatMsg; pending?: boolean }) {
       <div
         className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
           isUser
-            ? 'bg-brand-600 text-white rounded-br-md'
-            : 'bg-slate-100 text-slate-800 rounded-bl-md'
+            ? 'bg-brand-600 text-white rounded-br-md dark:bg-brand-500'
+            : 'bg-slate-100 text-slate-800 rounded-bl-md dark:bg-slate-800 dark:text-slate-100'
         }`}
       >
         {isUser ? (
           <div className="whitespace-pre-wrap break-words">{msg.content}</div>
         ) : pending ? (
           <div className="flex items-center gap-1 py-0.5" aria-label="thinking">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-400 animate-pulse" />
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-400 animate-pulse [animation-delay:120ms]" />
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-400 animate-pulse [animation-delay:240ms]" />
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-400 animate-pulse dark:bg-slate-500" />
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-400 animate-pulse [animation-delay:120ms] dark:bg-slate-500" />
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-400 animate-pulse [animation-delay:240ms] dark:bg-slate-500" />
           </div>
         ) : (
           <div className="markdown-body break-words">
@@ -327,13 +331,13 @@ function Bubble({ msg, pending = false }: { msg: ChatMsg; pending?: boolean }) {
           </div>
         )}
         {truncated && (
-          <div className="text-[11px] text-amber-700 mt-1.5 italic">
+          <div className="text-[11px] text-amber-700 mt-1.5 italic dark:text-amber-300">
             Response was cut off ({msg.meta?.finishReason}). Ask a follow-up to
             continue, or try a smaller window.
           </div>
         )}
         {!isUser && msg.meta?.tokensIn != null && (
-          <div className="text-[10px] text-slate-400 mt-1">
+          <div className="text-[10px] text-slate-400 mt-1 dark:text-slate-500">
             {msg.meta.model}
             {msg.meta.mode ? ` · ${msg.meta.mode}` : ''} · {msg.meta.tokensIn} in
             · {msg.meta.tokensOut} out

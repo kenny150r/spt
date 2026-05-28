@@ -32,11 +32,11 @@ interface Props {
 export function Layout({ baby, view, onChangeView, children }: Props) {
   return (
     <div className="min-h-dvh flex flex-col">
-      <header className="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-slate-200">
+      <header className="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-slate-200 dark:bg-slate-950/80 dark:border-slate-800">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-2">
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-semibold leading-tight truncate">{baby.name}</h1>
-            <p className="text-xs text-slate-500 truncate">
+            <p className="text-xs text-slate-500 truncate dark:text-slate-400">
               {ageString(
                 baby.birthday,
                 new Date(),
@@ -48,7 +48,7 @@ export function Layout({ baby, view, onChangeView, children }: Props) {
           <button
             type="button"
             onClick={() => onChangeView('settings')}
-            className={`btn-ghost ${view === 'settings' ? 'text-brand-600 bg-brand-50' : ''}`}
+            className={`btn-ghost ${view === 'settings' ? 'text-brand-600 bg-brand-50 dark:text-brand-300 dark:bg-brand-900/30' : ''}`}
             aria-label="Settings"
             title="Settings"
           >
@@ -68,7 +68,7 @@ export function Layout({ baby, view, onChangeView, children }: Props) {
 
       <main className="flex-1 max-w-2xl w-full mx-auto px-4 py-4 pb-28">{children}</main>
 
-      <nav className="fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 pb-[env(safe-area-inset-bottom)]">
+      <nav className="fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 pb-[env(safe-area-inset-bottom)] dark:bg-slate-950 dark:border-slate-800">
         <div className="max-w-2xl mx-auto px-1 py-2 grid grid-cols-6">
           <NavButton
             label="Log"
@@ -128,7 +128,9 @@ function NavButton({
       type="button"
       onClick={onClick}
       className={`flex flex-col items-center justify-center py-2 rounded-xl transition-colors ${
-        active ? 'text-brand-600 bg-brand-50' : 'text-slate-500 hover:text-slate-700'
+        active
+          ? 'text-brand-600 bg-brand-50 dark:text-brand-300 dark:bg-brand-900/30'
+          : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
       }`}
     >
       {icon}

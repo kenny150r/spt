@@ -27,6 +27,7 @@ import {
 } from '../lib/who'
 import type { Baby, WeightEntry } from '../lib/types'
 import { formatDate, formatWeight, kgToLbOz, KG_TO_LB } from '../lib/format'
+import { useChartTheme } from '../lib/chartTheme'
 
 type Unit = 'kg' | 'lb'
 type AgeMode = 'chronological' | 'corrected'
@@ -41,6 +42,7 @@ const ZOOM_OPTIONS: { id: Zoom; label: string; max: number }[] = [
 ]
 
 export function GrowthView({ baby }: { baby: Baby }) {
+  const t = useChartTheme()
   const preterm = daysPreterm(baby.gestational_age_weeks, baby.gestational_age_days)
   const isPreterm = preterm > 0
 
@@ -264,18 +266,18 @@ export function GrowthView({ baby }: { baby: Baby }) {
       <section className="card p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide dark:text-slate-400">
               Latest weight
             </h2>
             {latest ? (
               <>
                 <div className="text-2xl font-semibold mt-1">
                   {formatWeight(latest.weight_kg, unit === 'kg' ? 'metric' : 'imperial')}
-                  <span className="text-base font-normal text-slate-500 ml-2">
+                  <span className="text-base font-normal text-slate-500 ml-2 dark:text-slate-400">
                     ({Math.round(latest.weight_kg * 1000)} g)
                   </span>
                 </div>
-                <div className="text-xs text-slate-500 mt-0.5">
+                <div className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">
                   {formatDate(latest.measured_at)}
                   {latestStats?.z != null && (
                     <>
@@ -283,9 +285,9 @@ export function GrowthView({ baby }: { baby: Baby }) {
                       <span
                         className={
                           latestStats.z <= -2
-                            ? 'text-amber-700 font-medium'
+                            ? 'text-amber-700 font-medium dark:text-amber-400'
                             : latestStats.z >= 2
-                              ? 'text-emerald-700 font-medium'
+                              ? 'text-emerald-700 font-medium dark:text-emerald-400'
                               : ''
                         }
                       >
@@ -299,7 +301,7 @@ export function GrowthView({ baby }: { baby: Baby }) {
                 </div>
               </>
             ) : (
-              <p className="text-sm text-slate-500 mt-1">No weight entries yet.</p>
+              <p className="text-sm text-slate-500 mt-1 dark:text-slate-400">No weight entries yet.</p>
             )}
           </div>
           <button
@@ -315,12 +317,12 @@ export function GrowthView({ baby }: { baby: Baby }) {
 
       {weeklyDelta && (
         <section className="card p-4">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide dark:text-slate-400">
             Last {Math.round(weeklyDelta.days)} days
           </h2>
           <div className="mt-2 flex items-center gap-3">
             <DeltaPill delta={weeklyDelta.deltaKg} />
-            <div className="text-sm text-slate-600">
+            <div className="text-sm text-slate-600 dark:text-slate-300">
               <div>
                 <span className="font-medium">
                   {formatGramsDelta(weeklyDelta.deltaKg)}
@@ -328,13 +330,13 @@ export function GrowthView({ baby }: { baby: Baby }) {
                 {' · '}
                 <span>{formatOzDelta(weeklyDelta.deltaKg)}</span>
               </div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-slate-500 dark:text-slate-400">
                 <span
                   className={
                     weeklyDelta.expectedGPerDay != null
                       ? weeklyDelta.gPerDay >= weeklyDelta.expectedGPerDay
-                        ? 'text-emerald-700 font-medium'
-                        : 'text-amber-700 font-medium'
+                        ? 'text-emerald-700 font-medium dark:text-emerald-400'
+                        : 'text-amber-700 font-medium dark:text-amber-400'
                       : ''
                   }
                 >
@@ -343,7 +345,7 @@ export function GrowthView({ baby }: { baby: Baby }) {
                   g/day
                 </span>
                 {weeklyDelta.expectedGPerDay != null && (
-                  <span className="text-slate-400">
+                  <span className="text-slate-400 dark:text-slate-500">
                     {' '}· typical{' '}
                     {(weeklyDelta.expectedGPerDay >= 0 ? '+' : '') +
                       weeklyDelta.expectedGPerDay.toFixed(0)}{' '}
@@ -357,14 +359,14 @@ export function GrowthView({ baby }: { baby: Baby }) {
             </div>
           </div>
           {weeklyDelta.zNow != null && weeklyDelta.zThen != null && (
-            <p className="text-xs text-slate-500 mt-2">
+            <p className="text-xs text-slate-500 mt-2 dark:text-slate-400">
               z-score: {weeklyDelta.zThen.toFixed(2)} →{' '}
               <span
                 className={
                   weeklyDelta.zNow > weeklyDelta.zThen
-                    ? 'text-emerald-700 font-medium'
+                    ? 'text-emerald-700 font-medium dark:text-emerald-400'
                     : weeklyDelta.zNow < weeklyDelta.zThen
-                      ? 'text-amber-700 font-medium'
+                      ? 'text-amber-700 font-medium dark:text-amber-400'
                       : ''
                 }
               >
@@ -382,17 +384,19 @@ export function GrowthView({ baby }: { baby: Baby }) {
 
       <section className="card p-4">
         <div className="flex items-center justify-between mb-3 gap-2">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide dark:text-slate-400">
             Weight-for-age
           </h2>
-          <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs">
+          <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs dark:border-slate-700">
             {(['lb', 'kg'] as Unit[]).map((u) => (
               <button
                 key={u}
                 type="button"
                 onClick={() => setUnit(u)}
                 className={`px-3 py-1.5 uppercase font-medium ${
-                  unit === u ? 'bg-brand-600 text-white' : 'bg-white text-slate-600'
+                  unit === u
+                    ? 'bg-brand-600 text-white dark:bg-brand-500'
+                    : 'bg-white text-slate-600 dark:bg-slate-900 dark:text-slate-300'
                 }`}
               >
                 {u}
@@ -405,7 +409,7 @@ export function GrowthView({ baby }: { baby: Baby }) {
           <div
             role="group"
             aria-label="Zoom range"
-            className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs"
+            className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs dark:border-slate-700"
           >
             {ZOOM_OPTIONS.map((z) => (
               <button
@@ -413,7 +417,9 @@ export function GrowthView({ baby }: { baby: Baby }) {
                 type="button"
                 onClick={() => setZoom(z.id)}
                 className={`px-3 py-1.5 font-medium ${
-                  zoom === z.id ? 'bg-brand-600 text-white' : 'bg-white text-slate-600'
+                  zoom === z.id
+                    ? 'bg-brand-600 text-white dark:bg-brand-500'
+                    : 'bg-white text-slate-600 dark:bg-slate-900 dark:text-slate-300'
                 }`}
               >
                 {z.label}
@@ -424,7 +430,7 @@ export function GrowthView({ baby }: { baby: Baby }) {
             <div
               role="group"
               aria-label="Age mode"
-              className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs"
+              className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs dark:border-slate-700"
               title={`Corrected for ${Math.floor(preterm / 7)}w ${preterm % 7}d preterm`}
             >
               {(
@@ -438,7 +444,9 @@ export function GrowthView({ baby }: { baby: Baby }) {
                   type="button"
                   onClick={() => setAgeMode(m.id)}
                   className={`px-3 py-1.5 font-medium ${
-                    ageMode === m.id ? 'bg-brand-600 text-white' : 'bg-white text-slate-600'
+                    ageMode === m.id
+                      ? 'bg-brand-600 text-white dark:bg-brand-500'
+                      : 'bg-white text-slate-600 dark:bg-slate-900 dark:text-slate-300'
                   }`}
                 >
                   {m.label}
@@ -451,14 +459,15 @@ export function GrowthView({ baby }: { baby: Baby }) {
         <div className="h-[360px] -mx-2">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 24 }}>
-              <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" />
+              <CartesianGrid stroke={t.grid} strokeDasharray="3 3" />
               <XAxis
                 dataKey="ageMonths"
                 type="number"
                 domain={[xMin, xMax]}
                 ticks={gaTicks}
                 tickFormatter={(v) => formatXTick(Number(v), xMax, showAsGA)}
-                tick={{ fontSize: 11 }}
+                tick={{ fontSize: 11, fill: t.axis }}
+                stroke={t.axis}
                 label={{
                   value: showAsGA
                     ? 'Gestational age'
@@ -468,19 +477,24 @@ export function GrowthView({ baby }: { baby: Baby }) {
                   position: 'insideBottom',
                   offset: -8,
                   fontSize: 11,
+                  fill: t.axis,
                 }}
               />
               <YAxis
-                tick={{ fontSize: 11 }}
+                tick={{ fontSize: 11, fill: t.axis }}
+                stroke={t.axis}
                 label={{
                   value: unit === 'lb' ? 'Weight (lb)' : 'Weight (kg)',
                   angle: -90,
                   position: 'insideLeft',
                   fontSize: 11,
                   offset: 10,
+                  fill: t.axis,
                 }}
               />
               <Tooltip
+                contentStyle={{ background: t.tooltipBg, border: `1px solid ${t.tooltipBorder}`, color: t.tooltipText }}
+                labelStyle={{ color: t.tooltipText }}
                 formatter={(v, name) => {
                   const num = typeof v === 'number' ? v : Number(v)
                   if (!Number.isFinite(num)) return ['—', name as string]
@@ -493,43 +507,43 @@ export function GrowthView({ baby }: { baby: Baby }) {
               />
               <Legend
                 verticalAlign="top"
-                wrapperStyle={{ fontSize: 11, paddingBottom: 6 }}
+                wrapperStyle={{ fontSize: 11, paddingBottom: 6, color: t.legend }}
               />
               {useCorrected && isPreterm && xMin < 0 && (
                 <ReferenceLine
                   x={0}
-                  stroke="#f59e0b"
+                  stroke={t.bars.amber}
                   strokeDasharray="3 3"
                   label={{
                     value: showAsGA ? '40w (term)' : 'Term',
                     position: 'top',
                     fontSize: 10,
-                    fill: '#b45309',
+                    fill: t.bars.amber,
                   }}
                 />
               )}
               {/* Lower SD bands first so percentile lines render on top. */}
-              <Line type="monotone" dataKey="sd_neg3" name="-3 SD" stroke="#fca5a5" strokeDasharray="2 4" dot={false} connectNulls />
-              <Line type="monotone" dataKey="sd_neg2" name="-2 SD" stroke="#fcd34d" strokeDasharray="2 4" dot={false} connectNulls />
-              <Line type="monotone" dataKey="p3" name="3rd" stroke="#cbd5e1" strokeDasharray="4 4" dot={false} connectNulls />
-              <Line type="monotone" dataKey="p15" name="15th" stroke="#94a3b8" strokeDasharray="4 4" dot={false} connectNulls />
-              <Line type="monotone" dataKey="p50" name="50th" stroke="#475569" dot={false} connectNulls />
-              <Line type="monotone" dataKey="p85" name="85th" stroke="#94a3b8" strokeDasharray="4 4" dot={false} connectNulls />
-              <Line type="monotone" dataKey="p97" name="97th" stroke="#cbd5e1" strokeDasharray="4 4" dot={false} connectNulls />
+              <Line type="monotone" dataKey="sd_neg3" name="-3 SD" stroke={t.who.neg3} strokeDasharray="2 4" dot={false} connectNulls />
+              <Line type="monotone" dataKey="sd_neg2" name="-2 SD" stroke={t.who.neg2} strokeDasharray="2 4" dot={false} connectNulls />
+              <Line type="monotone" dataKey="p3" name="3rd" stroke={t.who.p3} strokeDasharray="4 4" dot={false} connectNulls />
+              <Line type="monotone" dataKey="p15" name="15th" stroke={t.who.p15} strokeDasharray="4 4" dot={false} connectNulls />
+              <Line type="monotone" dataKey="p50" name="50th" stroke={t.who.p50} dot={false} connectNulls />
+              <Line type="monotone" dataKey="p85" name="85th" stroke={t.who.p85} strokeDasharray="4 4" dot={false} connectNulls />
+              <Line type="monotone" dataKey="p97" name="97th" stroke={t.who.p97} strokeDasharray="4 4" dot={false} connectNulls />
               <Line
                 type="monotone"
                 dataKey="actual"
                 name={baby.name}
-                stroke="#2563eb"
+                stroke={t.sam}
                 strokeWidth={2}
-                dot={{ r: 2.5, fill: '#2563eb', strokeWidth: 0 }}
+                dot={{ r: 2.5, fill: t.sam, strokeWidth: 0 }}
                 activeDot={{ r: 4 }}
                 connectNulls
               />
             </LineChart>
           </ResponsiveContainer>
         </div>
-        <p className="text-[11px] text-slate-400 text-center mt-2">
+        <p className="text-[11px] text-slate-400 text-center mt-2 dark:text-slate-500">
           Reference: WHO Child Growth Standards, weight-for-age (0–36 mo).
           {' '}-2/-3 SD lines approximate WHO via log-normal extrapolation.
           {isPreterm &&
@@ -539,14 +553,14 @@ export function GrowthView({ baby }: { baby: Baby }) {
       </section>
 
       <section>
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2 dark:text-slate-400">
           Weight history
         </h2>
-        <div className="card divide-y divide-slate-100">
+        <div className="card divide-y divide-slate-100 dark:divide-slate-800">
           {loading ? (
-            <p className="px-4 py-6 text-sm text-slate-500 text-center">Loading…</p>
+            <p className="px-4 py-6 text-sm text-slate-500 text-center dark:text-slate-400">Loading…</p>
           ) : weights.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-slate-500 text-center">
+            <p className="px-4 py-6 text-sm text-slate-500 text-center dark:text-slate-400">
               No measurements yet.
             </p>
           ) : (
@@ -561,15 +575,15 @@ export function GrowthView({ baby }: { baby: Baby }) {
                     <div>
                       <div className="text-sm font-medium">
                         {unit === 'lb' ? `${lb.lb} lb ${lb.oz} oz` : `${w.weight_kg.toFixed(2)} kg`}
-                        <span className="text-xs text-slate-400 ml-2">
+                        <span className="text-xs text-slate-400 ml-2 dark:text-slate-500">
                           {Math.round(w.weight_kg * 1000)} g
                         </span>
                       </div>
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
                         {formatDate(w.measured_at)}
                       </div>
                     </div>
-                    <div className="text-xs text-slate-400">
+                    <div className="text-xs text-slate-400 dark:text-slate-500">
                       {am.toFixed(2)} mo{useCorrected && isPreterm ? ' (cor)' : ''}
                     </div>
                   </div>
@@ -644,13 +658,13 @@ function formatOzDelta(deltaKg: number): string {
 function DeltaPill({ delta }: { delta: number }) {
   if (delta >= 0) {
     return (
-      <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-700 grid place-items-center">
+      <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-700 grid place-items-center dark:bg-emerald-900/30 dark:text-emerald-300">
         <TrendingUp className="h-6 w-6" />
       </div>
     )
   }
   return (
-    <div className="h-12 w-12 rounded-2xl bg-amber-50 text-amber-700 grid place-items-center">
+    <div className="h-12 w-12 rounded-2xl bg-amber-50 text-amber-700 grid place-items-center dark:bg-amber-900/30 dark:text-amber-300">
       <TrendingDown className="h-6 w-6" />
     </div>
   )

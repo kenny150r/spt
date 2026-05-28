@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { Download } from 'lucide-react'
+import { Download, Monitor, Moon, Sun } from 'lucide-react'
 import { exportBabyData, updateBaby } from '../lib/api'
 import { toDateInput } from '../lib/format'
 import type { Baby, Sex } from '../lib/types'
 import { useVocab } from '../lib/vocab'
 import type { VocabMode } from '../lib/vocab'
+import { useTheme } from '../lib/theme'
+import type { ThemeMode } from '../lib/theme'
 
 export function SettingsView({
   baby,
@@ -57,7 +59,7 @@ export function SettingsView({
   return (
     <div className="space-y-5">
       <section className="card p-5">
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4 dark:text-slate-400">
           Baby profile
         </h2>
         <form onSubmit={onSubmit} className="space-y-4">
@@ -81,8 +83,8 @@ export function SettingsView({
                   onClick={() => setSex(s)}
                   className={`btn ${
                     sex === s
-                      ? 'bg-brand-600 text-white'
-                      : 'bg-white border border-slate-200 text-slate-700'
+                      ? 'bg-brand-600 text-white dark:bg-brand-500'
+                      : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200'
                   }`}
                 >
                   {s === 'male' ? 'Boy' : 'Girl'}
@@ -105,7 +107,7 @@ export function SettingsView({
           <div>
             <label className="label">
               Gestational age at birth{' '}
-              <span className="text-slate-400 font-normal">(40w 0d = full-term)</span>
+              <span className="text-slate-400 font-normal dark:text-slate-500">(40w 0d = full-term)</span>
             </label>
             <div className="grid grid-cols-2 gap-2">
               <div className="relative">
@@ -119,7 +121,7 @@ export function SettingsView({
                   className="input pr-10"
                   aria-label="Weeks at birth"
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 dark:text-slate-500">
                   wks
                 </span>
               </div>
@@ -134,12 +136,12 @@ export function SettingsView({
                   className="input pr-10"
                   aria-label="Days at birth"
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 dark:text-slate-500">
                   days
                 </span>
               </div>
             </div>
-            <p className="text-xs text-slate-500 mt-1.5">
+            <p className="text-xs text-slate-500 mt-1.5 dark:text-slate-400">
               Used to compute corrected age and to align growth-curve overlays
               for preterm babies.
             </p>
@@ -147,7 +149,7 @@ export function SettingsView({
           <div>
             <label className="label" htmlFor="breastRate">
               Breastfeeding rate{' '}
-              <span className="text-slate-400 font-normal">(mL per minute)</span>
+              <span className="text-slate-400 font-normal dark:text-slate-500">(mL per minute)</span>
             </label>
             <div className="relative">
               <input
@@ -161,34 +163,36 @@ export function SettingsView({
                 onChange={(e) => setBreastRate(e.target.value)}
                 className="input pr-14"
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 dark:text-slate-500">
                 mL/min
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-1.5">
+            <p className="text-xs text-slate-500 mt-1.5 dark:text-slate-400">
               Used on the Feeding page to convert breastfeeding minutes into a
               volume estimate. Newborns: ~5–10 mL/min. 2–4 mo: ~15–25 mL/min.
               Adjust to match what your pediatrician or weighed-feeds suggest.
             </p>
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           <div className="flex items-center gap-3">
             <button type="submit" disabled={saving} className="btn-primary">
               {saving ? 'Saving…' : 'Save changes'}
             </button>
             {savedAt > 0 && !saving && (
-              <span className="text-xs text-emerald-600">Saved.</span>
+              <span className="text-xs text-emerald-600 dark:text-emerald-400">Saved.</span>
             )}
           </div>
         </form>
       </section>
 
+      <AppearanceCard />
+
       <VocabularyCard />
 
       <ExportCard baby={baby} />
 
-      <section className="card p-5 text-sm text-slate-600 space-y-2">
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-1">
+      <section className="card p-5 text-sm text-slate-600 space-y-2 dark:text-slate-300">
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-1 dark:text-slate-400">
           About
         </h2>
         <p>
@@ -259,10 +263,10 @@ function ExportCard({ baby }: { baby: Baby }) {
 
   return (
     <section className="card p-5">
-      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-1">
+      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-1 dark:text-slate-400">
         Export data
       </h2>
-      <p className="text-xs text-slate-500 mb-3">
+      <p className="text-xs text-slate-500 mb-3 dark:text-slate-400">
         Downloads every weight, feed, diaper, pump, and supplement entry
         for <span className="font-medium">{baby.name}</span> as a single
         JSON file. Safe to AirDrop or stash in iCloud / Dropbox.
@@ -277,18 +281,20 @@ function ExportCard({ baby }: { baby: Baby }) {
         {busy ? 'Preparing…' : 'Download JSON snapshot'}
       </button>
       {error && (
-        <p className="text-xs text-red-600 mt-2 break-words">{error}</p>
+        <p className="text-xs text-red-600 mt-2 break-words dark:text-red-400">{error}</p>
       )}
       {lastDownload && !error && (
-        <p className="text-xs text-emerald-700 mt-2">
+        <p className="text-xs text-emerald-700 mt-2 dark:text-emerald-300">
           Saved <span className="font-medium">{lastDownload.file}</span> ·{' '}
           {lastDownload.rows.toLocaleString()} rows ·{' '}
           {formatBytes(lastDownload.bytes)}
         </p>
       )}
-      <p className="text-[11px] text-slate-400 mt-3 leading-relaxed">
+      <p className="text-[11px] text-slate-400 mt-3 leading-relaxed dark:text-slate-500">
         For a full restorable SQL dump (including schema), run{' '}
-        <code className="bg-slate-100 px-1 py-0.5 rounded">npm run backup</code>{' '}
+        <code className="bg-slate-100 px-1 py-0.5 rounded dark:bg-slate-800 dark:text-slate-300">
+          npm run backup
+        </code>{' '}
         in the project repo on a computer with the Supabase CLI.
         Supabase also keeps automatic daily backups for 7 days on the free
         tier — see Database → Backups in the Supabase dashboard.
@@ -303,16 +309,71 @@ function formatBytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(2)} MB`
 }
 
+const THEME_OPTIONS: {
+  id: ThemeMode
+  label: string
+  sub: string
+  icon: React.ReactNode
+}[] = [
+  { id: 'system', label: 'System', sub: 'match device', icon: <Monitor className="h-4 w-4" /> },
+  { id: 'light', label: 'Light', sub: 'always light', icon: <Sun className="h-4 w-4" /> },
+  { id: 'dark', label: 'Dark', sub: 'always dark', icon: <Moon className="h-4 w-4" /> },
+]
+
+// Per-device pref. 'System' tracks prefers-color-scheme and updates live
+// (e.g. when iOS rolls over at sunset).
+function AppearanceCard() {
+  const { mode, setMode, resolved } = useTheme()
+  return (
+    <section className="card p-5">
+      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-1 dark:text-slate-400">
+        Appearance
+      </h2>
+      <p className="text-xs text-slate-500 mb-3 dark:text-slate-400">
+        Currently showing <span className="font-medium">{resolved}</span> mode.
+        Saved on this device.
+      </p>
+      <div className="grid grid-cols-3 gap-2">
+        {THEME_OPTIONS.map((opt) => (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => setMode(opt.id)}
+            aria-pressed={mode === opt.id}
+            className={`p-3 rounded-2xl border text-left active:scale-[0.99] transition-transform ${
+              mode === opt.id
+                ? 'bg-brand-600 text-white border-brand-600 dark:bg-brand-500 dark:border-brand-500'
+                : 'bg-white border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200'
+            }`}
+          >
+            <div className="flex items-center gap-1.5 text-sm font-semibold leading-tight">
+              {opt.icon}
+              {opt.label}
+            </div>
+            <div
+              className={`text-[11px] mt-0.5 ${
+                mode === opt.id ? 'opacity-90' : 'text-slate-500 dark:text-slate-400'
+              }`}
+            >
+              {opt.sub}
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 // Per-device pref (stored in localStorage), so different folks in the
 // household can pick whichever feels right on their phone.
 function VocabularyCard() {
   const { mode, setMode } = useVocab()
   return (
     <section className="card p-5">
-      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-1">
+      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-1 dark:text-slate-400">
         Vocabulary
       </h2>
-      <p className="text-xs text-slate-500 mb-3">
+      <p className="text-xs text-slate-500 mb-3 dark:text-slate-400">
         Choose which words the app uses for diaper contents. Saved on this
         device.
       </p>
@@ -325,8 +386,8 @@ function VocabularyCard() {
             aria-pressed={mode === opt.id}
             className={`p-3 rounded-2xl border text-left active:scale-[0.99] transition-transform ${
               mode === opt.id
-                ? 'bg-brand-600 text-white border-brand-600'
-                : 'bg-white border-slate-200 text-slate-700'
+                ? 'bg-brand-600 text-white border-brand-600 dark:bg-brand-500 dark:border-brand-500'
+                : 'bg-white border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200'
             }`}
           >
             <div className="text-sm font-semibold leading-tight">
@@ -335,7 +396,7 @@ function VocabularyCard() {
             </div>
             <div
               className={`text-[11px] mt-0.5 ${
-                mode === opt.id ? 'opacity-90' : 'text-slate-500'
+                mode === opt.id ? 'opacity-90' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
               {opt.sample}

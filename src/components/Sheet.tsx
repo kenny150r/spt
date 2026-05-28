@@ -31,7 +31,7 @@ export function Sheet({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center">
       <div
-        className="absolute inset-0 bg-slate-900/40"
+        className="absolute inset-0 bg-slate-900/40 dark:bg-black/60"
         onClick={onClose}
         aria-hidden
       />
@@ -39,7 +39,7 @@ export function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative w-full sm:max-w-md sm:m-4 bg-white rounded-t-3xl sm:rounded-3xl shadow-xl pb-[env(safe-area-inset-bottom)]"
+        className="relative w-full sm:max-w-md sm:m-4 bg-white rounded-t-3xl sm:rounded-3xl shadow-xl pb-[env(safe-area-inset-bottom)] dark:bg-slate-900 dark:shadow-2xl dark:ring-1 dark:ring-slate-800"
       >
         <div className="flex items-center justify-between px-5 pt-4 pb-2">
           <h2 className="text-base font-semibold">{title}</h2>
