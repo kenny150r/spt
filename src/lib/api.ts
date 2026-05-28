@@ -422,3 +422,83 @@ export async function deleteEntry(
   const { error } = await supabase.from(table).delete().eq('id', id)
   if (error) throw error
 }
+
+// ---- Export ----
+
+export interface BabyExport {
+  exported_at: string
+  source: 'spt-app'
+  schema_version: 1
+  baby: Baby
+  weights: WeightEntry[]
+  feeds: FeedEntry[]
+  diapers: DiaperEntry[]
+  pumps: PumpEntry[]
+  supplements: SupplementEntry[]
+  counts: {
+    weights: number
+    feeds: number
+    diapers: number
+    pumps: number
+    supplements: number
+  }
+}
+
+// Pull every row from every table for a single baby, ordered oldest-first
+// (so the file reads naturally as a chronological history). Returns a
+// self-describing snapshot suitable for download / archival; the
+// `schema_version` field gives us a hook for a future importer if the
+// table shapes ever change.
+export async function exportBabyData(baby: Baby): Promise<BabyExport> {
+  const [weights, feeds, diapers, pumps, supplements] = await Promise.all([
+    selectAll<WeightEntry>('weights', baby.id, 'measured_at'),
+    selectAll<FeedEntry>('feeds', baby.id, 'fed_at'),
+    selectAll<DiaperEntry>('diapers', baby.id, 'occurred_at'),
+    selectAll<PumpEntry>('pumps', baby.id, 'pumped_at'),
+    selectAll<SupplementEntry>('supplements', baby.id, 'given_at'),
+  ])
+  return {
+    exported_at: new Date().toISOString(),
+    source: 'spt-app',
+    schema_version: 1,
+    baby,
+    weights,
+    feeds,
+    diapers,
+    pumps,
+    supplements,
+    counts: {
+      weights: weights.length,
+      feeds: feeds.length,
+      diapers: diapers.length,
+      pumps: pumps.length,
+      supplements: supplements.length,
+    },
+  }
+}
+
+// Page through every row in a table for one baby. Supabase caps each
+// `select()` at 1000 rows by default, so we loop with `.range()` until the
+// returned page is short — this lets the export include arbitrarily long
+// histories without us guessing a magic limit.
+async function selectAll<T>(
+  table: 'weights' | 'feeds' | 'diapers' | 'pumps' | 'supplements',
+  babyId: string,
+  orderCol: string,
+): Promise<T[]> {
+  const pageSize = 1000
+  const out: T[] = []
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .eq('baby_id', babyId)
+      .order(orderCol, { ascending: true })
+      .range(from, from + pageSize - 1)
+    if (error) throw error
+    const rows = (data ?? []) as T[]
+    out.push(...rows)
+    if (rows.length < pageSize) break
+  }
+  return out
+}

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { updateBaby } from '../lib/api'
+import { Download } from 'lucide-react'
+import { exportBabyData, updateBaby } from '../lib/api'
 import { toDateInput } from '../lib/format'
 import type { Baby, Sex } from '../lib/types'
 import { useVocab } from '../lib/vocab'
@@ -184,6 +185,8 @@ export function SettingsView({
 
       <VocabularyCard />
 
+      <ExportCard baby={baby} />
+
       <section className="card p-5 text-sm text-slate-600 space-y-2">
         <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-1">
           About
@@ -206,6 +209,99 @@ const VOCAB_OPTIONS: { id: VocabMode; label: string; sample: string }[] = [
   { id: 'casual', label: 'Casual', sample: 'peepies / poopies' },
   { id: 'sophisticated', label: 'Sophisticated', sample: 'urine / stool' },
 ]
+
+// Downloads a single self-contained JSON file with every row across all
+// tables for the active baby. Handy as a quick "give me a copy in
+// Dropbox/iCloud right now" backup that works on a phone with no CLI.
+// Pair with `npm run backup` (SQL dump) for full-fidelity restorable
+// backups on the developer's machine.
+function ExportCard({ baby }: { baby: Baby }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>('')
+  const [lastDownload, setLastDownload] = useState<{
+    file: string
+    bytes: number
+    rows: number
+  } | null>(null)
+
+  async function onExport() {
+    setBusy(true)
+    setError('')
+    try {
+      const snapshot = await exportBabyData(baby)
+      const json = JSON.stringify(snapshot, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const slug = baby.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+      const file = `spt-${slug || 'baby'}-${stamp}.json`
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = file
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      // Defer revoke so iOS Safari has time to start the download.
+      setTimeout(() => URL.revokeObjectURL(url), 4000)
+      const totalRows =
+        snapshot.counts.weights +
+        snapshot.counts.feeds +
+        snapshot.counts.diapers +
+        snapshot.counts.pumps +
+        snapshot.counts.supplements
+      setLastDownload({ file, bytes: blob.size, rows: totalRows })
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Export failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="card p-5">
+      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-1">
+        Export data
+      </h2>
+      <p className="text-xs text-slate-500 mb-3">
+        Downloads every weight, feed, diaper, pump, and supplement entry
+        for <span className="font-medium">{baby.name}</span> as a single
+        JSON file. Safe to AirDrop or stash in iCloud / Dropbox.
+      </p>
+      <button
+        type="button"
+        onClick={onExport}
+        disabled={busy}
+        className="btn-primary inline-flex items-center gap-2"
+      >
+        <Download className="h-4 w-4" />
+        {busy ? 'Preparing…' : 'Download JSON snapshot'}
+      </button>
+      {error && (
+        <p className="text-xs text-red-600 mt-2 break-words">{error}</p>
+      )}
+      {lastDownload && !error && (
+        <p className="text-xs text-emerald-700 mt-2">
+          Saved <span className="font-medium">{lastDownload.file}</span> ·{' '}
+          {lastDownload.rows.toLocaleString()} rows ·{' '}
+          {formatBytes(lastDownload.bytes)}
+        </p>
+      )}
+      <p className="text-[11px] text-slate-400 mt-3 leading-relaxed">
+        For a full restorable SQL dump (including schema), run{' '}
+        <code className="bg-slate-100 px-1 py-0.5 rounded">npm run backup</code>{' '}
+        in the project repo on a computer with the Supabase CLI.
+        Supabase also keeps automatic daily backups for 7 days on the free
+        tier — see Database → Backups in the Supabase dashboard.
+      </p>
+    </section>
+  )
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`
+}
 
 // Per-device pref (stored in localStorage), so different folks in the
 // household can pick whichever feels right on their phone.
