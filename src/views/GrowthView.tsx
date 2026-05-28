@@ -307,23 +307,30 @@ export function GrowthView({ baby }: { baby: Baby }) {
     const zNow = ageNow >= 0 ? estimateZScore(baby.sex, ageNow, latest.weight_kg) : null
     const zThen = ageThen >= 0 ? estimateZScore(baby.sex, ageThen, thenWeightKg) : null
 
-    // "Typical" gain over the same window: the actual delta on the WHO
-    // 50th-percentile curve at the baby's (corrected) age. This is
-    // age-specific (newborns gain ~30 g/day, 6-month-olds ~12 g/day) so
-    // it's a better benchmark than a hard-coded range. Falls back to the
-    // static reference table only when corrected age is still negative
-    // (no WHO data pre-term).
+    // "Typical" gain over the same window: the delta on the WHO curve
+    // the baby is *currently sitting on*, not the 50th percentile.
+    // Babies tracking below the median grow fewer g/day in absolute
+    // terms, so benchmarking a <3rd-percentile baby against a P50 rate
+    // unfairly makes them look like they're falling behind. Using
+    // Sam's current z keeps the comparison apples-to-apples — the rate
+    // shown is "what it takes to stay on his curve". Clamp to a sane
+    // range so a wildly extrapolated z doesn't poison the slope.
+    const refZ = zNow != null ? Math.max(-3.5, Math.min(3.5, zNow)) : 0
     let expectedGPerDay: number | null = null
-    let expectedSource: 'who50' | 'preterm' | null = null
+    let expectedSource: 'whoCurve' | 'preterm' | null = null
+    let expectedPercentile: number | null = null
     if (ageNow >= 0 && ageThen >= 0) {
-      const wNow = weightAtZ(baby.sex, ageNow, 0)
-      const wThen = weightAtZ(baby.sex, ageThen, 0)
+      const wNow = weightAtZ(baby.sex, ageNow, refZ)
+      const wThen = weightAtZ(baby.sex, ageThen, refZ)
       if (wNow != null && wThen != null) {
         expectedGPerDay = ((wNow - wThen) * 1000) / days
-        expectedSource = 'who50'
+        expectedSource = 'whoCurve'
+        expectedPercentile = zToPercentile(refZ)
       }
     }
     if (expectedGPerDay == null) {
+      // Negative corrected age (pre-term) — WHO has no data here, so
+      // fall back to the static preterm gain table.
       const fallback = expectedGramsPerDay(ageNow)
       if (fallback) {
         expectedGPerDay = (fallback.low + fallback.high) / 2
@@ -339,6 +346,7 @@ export function GrowthView({ baby }: { baby: Baby }) {
       zThen,
       expectedGPerDay,
       expectedSource,
+      expectedPercentile,
       nSamples,
       smoothed,
     }
@@ -442,13 +450,23 @@ export function GrowthView({ baby }: { baby: Baby }) {
                   g/day
                 </span>
                 {weeklyDelta.expectedGPerDay != null && (
-                  <span className="text-slate-400 dark:text-slate-500">
+                  <span
+                    className="text-slate-400 dark:text-slate-500"
+                    title={
+                      weeklyDelta.expectedSource === 'whoCurve'
+                        ? "Slope of the WHO curve at the baby's current percentile — i.e. the g/day needed to stay on the same percentile."
+                        : 'Static preterm reference (no WHO data for negative corrected age).'
+                    }
+                  >
                     {' '}· typical{' '}
                     {(weeklyDelta.expectedGPerDay >= 0 ? '+' : '') +
                       weeklyDelta.expectedGPerDay.toFixed(0)}{' '}
                     g/day
-                    {weeklyDelta.expectedSource === 'who50'
-                      ? ` (WHO 50th${isPreterm ? ', corrected' : ''})`
+                    {weeklyDelta.expectedSource === 'whoCurve' &&
+                    weeklyDelta.expectedPercentile != null
+                      ? ` (WHO ${compactPercentile(
+                          weeklyDelta.expectedPercentile,
+                        )}${isPreterm ? ', corrected' : ''})`
                       : ' (preterm catch-up)'}
                   </span>
                 )}
@@ -712,6 +730,22 @@ function formatXTick(v: number, xMax: number, showAsGA: boolean): string {
     return `${weeks.toFixed(0)}w`
   }
   return v.toFixed(0)
+}
+
+// Compact percentile label for inline use, e.g. "<1st", "3rd", "15th".
+// Keeps the typical-gain readout short so it doesn't wrap on phones.
+function compactPercentile(p: number): string {
+  if (p < 1) return '<1st'
+  const rounded = p < 5 ? Math.max(1, Math.round(p)) : Math.round(p)
+  const lastTwo = rounded % 100
+  const lastOne = rounded % 10
+  let suffix = 'th'
+  if (lastTwo < 11 || lastTwo > 13) {
+    if (lastOne === 1) suffix = 'st'
+    else if (lastOne === 2) suffix = 'nd'
+    else if (lastOne === 3) suffix = 'rd'
+  }
+  return `${rounded}${suffix}`
 }
 
 function formatPercentile(p: number): string {
