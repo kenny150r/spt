@@ -39,6 +39,11 @@ export interface FeedEntry {
   amount_ml: number | null
   duration_min: number | null
   side: FeedSide | null
+  // Per-side breastfeeding durations; only populated for side='both'
+  // sessions where each breast was timed separately. When null on a
+  // 'both' row, callers fall back to splitting duration_min 50/50.
+  left_min: number | null
+  right_min: number | null
   iron: boolean
   multivitamin: boolean
   notes: string | null

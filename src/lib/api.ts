@@ -152,6 +152,8 @@ export async function addFeed(input: {
   amount_ml?: number | null
   duration_min?: number | null
   side?: FeedSide | null
+  left_min?: number | null
+  right_min?: number | null
   iron?: boolean
   multivitamin?: boolean
   notes?: string | null
@@ -165,6 +167,8 @@ export async function addFeed(input: {
       amount_ml: input.amount_ml ?? null,
       duration_min: input.duration_min ?? null,
       side: input.side ?? null,
+      left_min: input.left_min ?? null,
+      right_min: input.right_min ?? null,
       iron: input.iron ?? false,
       multivitamin: input.multivitamin ?? false,
       notes: input.notes ?? null,
@@ -183,6 +187,8 @@ export async function updateFeed(
     amount_ml?: number | null
     duration_min?: number | null
     side?: FeedSide | null
+    left_min?: number | null
+    right_min?: number | null
     iron?: boolean
     multivitamin?: boolean
     notes?: string | null

@@ -738,9 +738,14 @@ function buildSystemPrompt({
       if (f.type === 'bottle') {
         return `${t}  bottle  ${num(f.amount_ml, 0)} mL` + notesSuffix(f.notes)
       }
+      const lr =
+        f.left_min != null || f.right_min != null
+          ? ` L=${num(f.left_min, 0)} R=${num(f.right_min, 0)}`
+          : ''
       return (
         `${t}  breast  ${num(f.duration_min, 0)} min` +
         (f.side ? ` (${f.side})` : '') +
+        lr +
         notesSuffix(f.notes)
       )
     })

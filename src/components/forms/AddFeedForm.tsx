@@ -25,9 +25,28 @@ export function AddFeedForm({
     entry?.amount_ml != null ? String(entry.amount_ml) : '',
   )
   const [durationMin, setDurationMin] = useState(
-    entry?.duration_min != null ? String(entry.duration_min) : '',
+    entry?.side !== 'both' && entry?.duration_min != null
+      ? String(entry.duration_min)
+      : '',
   )
   const [side, setSide] = useState<FeedSide>(entry?.side ?? 'left')
+  // For 'both' edits we prefer the per-side breakdown if present; otherwise
+  // fall back to splitting the total 50/50 so the user has sane starting
+  // numbers, mirroring how AddPumpForm handles left_ml/right_ml.
+  const [leftMin, setLeftMin] = useState(
+    entry?.left_min != null
+      ? String(entry.left_min)
+      : entry?.side === 'both' && entry.duration_min != null
+        ? String(Math.round((entry.duration_min / 2) * 10) / 10)
+        : '',
+  )
+  const [rightMin, setRightMin] = useState(
+    entry?.right_min != null
+      ? String(entry.right_min)
+      : entry?.side === 'both' && entry.duration_min != null
+        ? String(Math.round((entry.duration_min / 2) * 10) / 10)
+        : '',
+  )
   const [iron, setIron] = useState<boolean>(entry?.iron ?? false)
   const [multivitamin, setMultivitamin] = useState<boolean>(entry?.multivitamin ?? false)
   const [notes, setNotes] = useState(entry?.notes ?? '')
@@ -39,12 +58,28 @@ export function AddFeedForm({
     setSubmitting(true)
     setError('')
     try {
+      let durationVal: number | null = null
+      let leftVal: number | null = null
+      let rightVal: number | null = null
+      if (type === 'breast') {
+        if (side === 'both') {
+          const l = leftMin ? Number(leftMin) : null
+          const r = rightMin ? Number(rightMin) : null
+          leftVal = l
+          rightVal = r
+          if (l != null || r != null) durationVal = (l ?? 0) + (r ?? 0)
+        } else {
+          durationVal = durationMin ? Number(durationMin) : null
+        }
+      }
       const payload = {
         fed_at: new Date(fedAt).toISOString(),
         type,
         amount_ml: type === 'bottle' && amountMl ? Number(amountMl) : null,
-        duration_min: type === 'breast' && durationMin ? Number(durationMin) : null,
+        duration_min: durationVal,
         side: type === 'breast' ? side : null,
+        left_min: leftVal,
+        right_min: rightVal,
         iron,
         multivitamin,
         notes: notes.trim() || null,
@@ -113,20 +148,6 @@ export function AddFeedForm({
       ) : (
         <>
           <div>
-            <label className="label" htmlFor="duration">Duration (min)</label>
-            <input
-              id="duration"
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="0.5"
-              value={durationMin}
-              onChange={(e) => setDurationMin(e.target.value)}
-              className="input"
-              placeholder="e.g. 15"
-            />
-          </div>
-          <div>
             <label className="label">Side</label>
             <div className="grid grid-cols-3 gap-2">
               {(['left', 'right', 'both'] as FeedSide[]).map((s) => (
@@ -145,6 +166,63 @@ export function AddFeedForm({
               ))}
             </div>
           </div>
+          {side === 'both' ? (
+            <div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="label" htmlFor="left_min">Left (min)</label>
+                  <input
+                    id="left_min"
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.5"
+                    value={leftMin}
+                    onChange={(e) => setLeftMin(e.target.value)}
+                    className="input"
+                    placeholder="e.g. 10"
+                  />
+                </div>
+                <div>
+                  <label className="label" htmlFor="right_min">Right (min)</label>
+                  <input
+                    id="right_min"
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.5"
+                    value={rightMin}
+                    onChange={(e) => setRightMin(e.target.value)}
+                    className="input"
+                    placeholder="e.g. 8"
+                  />
+                </div>
+              </div>
+              {(leftMin || rightMin) && (
+                <p className="text-xs text-slate-500 mt-1.5 dark:text-slate-400">
+                  Total {(Number(leftMin || 0) + Number(rightMin || 0))
+                    .toString()
+                    .replace(/\.0$/, '')}{' '}
+                  min
+                </p>
+              )}
+            </div>
+          ) : (
+            <div>
+              <label className="label" htmlFor="duration">Duration (min)</label>
+              <input
+                id="duration"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.5"
+                value={durationMin}
+                onChange={(e) => setDurationMin(e.target.value)}
+                className="input"
+                placeholder="e.g. 15"
+              />
+            </div>
+          )}
         </>
       )}
 

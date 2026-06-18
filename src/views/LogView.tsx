@@ -497,16 +497,25 @@ interface RowVisuals {
   typeLabel: string
 }
 
+// Trim a trailing ".0" so "10.0 min" renders as "10 min" while still
+// allowing half-minute values like "7.5".
+function fmtMin(n: number): string {
+  return (Math.round(n * 10) / 10).toString()
+}
+
 function rowVisuals(item: AnyEntry, vocab: DiaperVocab): RowVisuals {
   if (item.kind === 'feed') {
     const supps = [item.multivitamin && 'Vit', item.iron && 'Fe'].filter(Boolean) as string[]
     const suppStr = supps.length > 0 ? ` · +${supps.join('+')}` : ''
+    const sideStr = item.side
+      ? item.side === 'both' && (item.left_min != null || item.right_min != null)
+        ? ` (L ${fmtMin(item.left_min ?? 0)} / R ${fmtMin(item.right_min ?? 0)})`
+        : ` (${item.side})`
+      : ''
     const title =
       item.type === 'bottle'
         ? `Bottle${item.amount_ml ? ` · ${item.amount_ml} ml` : ''}${suppStr}`
-        : `Breast${item.duration_min ? ` · ${item.duration_min} min` : ''}${
-            item.side ? ` (${item.side})` : ''
-          }${suppStr}`
+        : `Breast${item.duration_min ? ` · ${fmtMin(item.duration_min)} min` : ''}${sideStr}${suppStr}`
     return {
       icon: <Milk className="h-4 w-4 text-amber-700 dark:text-amber-400" />,
       title,
@@ -576,8 +585,12 @@ function entryDetails(
     out.push({ label: 'Type', value: item.type === 'bottle' ? 'Bottle' : 'Breast' })
     if (item.amount_ml != null) out.push({ label: 'Amount', value: `${item.amount_ml} mL` })
     if (item.duration_min != null)
-      out.push({ label: 'Duration', value: `${item.duration_min} min` })
+      out.push({ label: 'Duration', value: `${fmtMin(item.duration_min)} min` })
     if (item.side) out.push({ label: 'Side', value: item.side })
+    if (item.left_min != null)
+      out.push({ label: 'Left', value: `${fmtMin(item.left_min)} min` })
+    if (item.right_min != null)
+      out.push({ label: 'Right', value: `${fmtMin(item.right_min)} min` })
     if (item.multivitamin || item.iron) {
       out.push({
         label: 'Supplements',

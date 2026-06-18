@@ -92,6 +92,12 @@ create table if not exists public.feeds (
   amount_ml     numeric(6, 1) check (amount_ml is null or amount_ml >= 0),
   duration_min  numeric(5, 1) check (duration_min is null or duration_min >= 0),
   side          text check (side is null or side in ('left', 'right', 'both')),
+  -- Per-side breastfeeding durations; only populated for side='both'
+  -- sessions where each breast was timed separately. When null on a
+  -- 'both' row, callers fall back to splitting duration_min 50/50,
+  -- mirroring how pumps handle left_ml/right_ml.
+  left_min      numeric(5, 1) check (left_min  is null or left_min  >= 0),
+  right_min     numeric(5, 1) check (right_min is null or right_min >= 0),
   iron          boolean not null default false,
   multivitamin  boolean not null default false,
   notes         text,
@@ -104,7 +110,23 @@ create index if not exists feeds_baby_fed_at_idx
 -- columns existed.
 alter table public.feeds
   add column if not exists iron         boolean not null default false,
-  add column if not exists multivitamin boolean not null default false;
+  add column if not exists multivitamin boolean not null default false,
+  add column if not exists left_min     numeric(5, 1),
+  add column if not exists right_min    numeric(5, 1);
+do $$ begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'feeds_left_min_chk'
+  ) then
+    alter table public.feeds add constraint feeds_left_min_chk
+      check (left_min is null or left_min >= 0);
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname = 'feeds_right_min_chk'
+  ) then
+    alter table public.feeds add constraint feeds_right_min_chk
+      check (right_min is null or right_min >= 0);
+  end if;
+end $$;
 
 create table if not exists public.diapers (
   id           uuid primary key default gen_random_uuid(),
