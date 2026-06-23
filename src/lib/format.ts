@@ -113,6 +113,19 @@ export function timeSinceShort(iso: string): string {
   return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`
 }
 
+// Compact duration label from a minute count: "45m", "1h 20m", "2h",
+// "1d 3h". Used for sleep sessions and other interval-based entries.
+export function formatDurationMin(totalMin: number): string {
+  const mins = Math.max(0, Math.round(totalMin))
+  if (mins < 60) return `${mins}m`
+  const hours = Math.floor(mins / 60)
+  const remMin = mins - hours * 60
+  if (hours < 24) return remMin > 0 ? `${hours}h ${remMin}m` : `${hours}h`
+  const days = Math.floor(hours / 24)
+  const remHours = hours - days * 24
+  return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`
+}
+
 // Returns a value usable as the value of a <input type="datetime-local">.
 export function toDatetimeLocal(d: Date): string {
   const tzOffset = d.getTimezoneOffset() * 60_000

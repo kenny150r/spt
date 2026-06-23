@@ -11,6 +11,7 @@ import { LogView } from './views/LogView'
 import { FeedingView } from './views/FeedingView'
 import { PumpingView } from './views/PumpingView'
 import { DiapersView } from './views/DiapersView'
+import { SleepView } from './views/SleepView'
 import { GrowthView } from './views/GrowthView'
 import { AskView } from './views/AskView'
 import { SettingsView } from './views/SettingsView'
@@ -79,6 +80,7 @@ function AppInner() {
         {view === 'feeding' && <FeedingView baby={baby} />}
         {view === 'pumping' && <PumpingView baby={baby} />}
         {view === 'diapers' && <DiapersView baby={baby} />}
+        {view === 'sleep' && <SleepView baby={baby} />}
         {view === 'growth' && <GrowthView baby={baby} />}
         {view === 'ask' && <AskView baby={baby} />}
         {view === 'settings' && <SettingsView baby={baby} onUpdated={setBaby} />}

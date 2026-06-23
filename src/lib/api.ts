@@ -10,6 +10,7 @@ import type {
   PumpEntry,
   PumpSide,
   Sex,
+  SleepEntry,
   SupplementEntry,
   WeightEntry,
 } from './types'
@@ -423,9 +424,94 @@ export async function updateSupplement(
   return data as SupplementEntry
 }
 
+// ---- Sleeps ----
+export async function listSleeps(
+  babyId: string,
+  limit = 50,
+): Promise<SleepEntry[]> {
+  const { data, error } = await supabase
+    .from('sleeps')
+    .select('*')
+    .eq('baby_id', babyId)
+    .order('started_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data ?? []
+}
+
+// Returns sleeps whose session overlaps the window: either it started on or
+// after `sinceISO`, OR it's still ongoing (ended_at is null). The latter
+// keeps a long overnight sleep that began before the window visible.
+export async function listSleepsSince(
+  babyId: string,
+  sinceISO: string,
+): Promise<SleepEntry[]> {
+  const { data, error } = await supabase
+    .from('sleeps')
+    .select('*')
+    .eq('baby_id', babyId)
+    .or(`started_at.gte.${sinceISO},ended_at.is.null`)
+    .order('started_at', { ascending: true })
+  if (error) throw error
+  return data ?? []
+}
+
+// The most recent sleep that hasn't ended yet (baby currently asleep), or
+// null. Used by the Log page to offer a one-tap "wake up" action.
+export async function getActiveSleep(babyId: string): Promise<SleepEntry | null> {
+  const { data, error } = await supabase
+    .from('sleeps')
+    .select('*')
+    .eq('baby_id', babyId)
+    .is('ended_at', null)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  return (data as SleepEntry) ?? null
+}
+
+export async function addSleep(input: {
+  baby_id: string
+  started_at: string
+  ended_at?: string | null
+  notes?: string | null
+}): Promise<SleepEntry> {
+  const { data, error } = await supabase
+    .from('sleeps')
+    .insert({
+      baby_id: input.baby_id,
+      started_at: input.started_at,
+      ended_at: input.ended_at ?? null,
+      notes: input.notes ?? null,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return data as SleepEntry
+}
+
+export async function updateSleep(
+  id: string,
+  patch: {
+    started_at?: string
+    ended_at?: string | null
+    notes?: string | null
+  },
+): Promise<SleepEntry> {
+  const { data, error } = await supabase
+    .from('sleeps')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data as SleepEntry
+}
+
 // ---- Generic delete ----
 export async function deleteEntry(
-  table: 'weights' | 'feeds' | 'diapers' | 'pumps' | 'supplements',
+  table: 'weights' | 'feeds' | 'diapers' | 'pumps' | 'supplements' | 'sleeps',
   id: string,
 ): Promise<void> {
   const { error } = await supabase.from(table).delete().eq('id', id)
@@ -444,12 +530,14 @@ export interface BabyExport {
   diapers: DiaperEntry[]
   pumps: PumpEntry[]
   supplements: SupplementEntry[]
+  sleeps: SleepEntry[]
   counts: {
     weights: number
     feeds: number
     diapers: number
     pumps: number
     supplements: number
+    sleeps: number
   }
 }
 
@@ -459,12 +547,13 @@ export interface BabyExport {
 // `schema_version` field gives us a hook for a future importer if the
 // table shapes ever change.
 export async function exportBabyData(baby: Baby): Promise<BabyExport> {
-  const [weights, feeds, diapers, pumps, supplements] = await Promise.all([
+  const [weights, feeds, diapers, pumps, supplements, sleeps] = await Promise.all([
     selectAll<WeightEntry>('weights', baby.id, 'measured_at'),
     selectAll<FeedEntry>('feeds', baby.id, 'fed_at'),
     selectAll<DiaperEntry>('diapers', baby.id, 'occurred_at'),
     selectAll<PumpEntry>('pumps', baby.id, 'pumped_at'),
     selectAll<SupplementEntry>('supplements', baby.id, 'given_at'),
+    selectAll<SleepEntry>('sleeps', baby.id, 'started_at'),
   ])
   return {
     exported_at: new Date().toISOString(),
@@ -476,12 +565,14 @@ export async function exportBabyData(baby: Baby): Promise<BabyExport> {
     diapers,
     pumps,
     supplements,
+    sleeps,
     counts: {
       weights: weights.length,
       feeds: feeds.length,
       diapers: diapers.length,
       pumps: pumps.length,
       supplements: supplements.length,
+      sleeps: sleeps.length,
     },
   }
 }
@@ -491,7 +582,7 @@ export async function exportBabyData(baby: Baby): Promise<BabyExport> {
 // returned page is short — this lets the export include arbitrarily long
 // histories without us guessing a magic limit.
 async function selectAll<T>(
-  table: 'weights' | 'feeds' | 'diapers' | 'pumps' | 'supplements',
+  table: 'weights' | 'feeds' | 'diapers' | 'pumps' | 'supplements' | 'sleeps',
   babyId: string,
   orderCol: string,
 ): Promise<T[]> {

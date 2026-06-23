@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
   // ---- fetch data (RLS enforced via user JWT) ----
   const since = new Date(Date.now() - rangeDays * 86_400_000).toISOString()
 
-  const [babyRes, weightsRes, feedsRes, diapersRes, pumpsRes, supplementsRes] =
+  const [babyRes, weightsRes, feedsRes, diapersRes, pumpsRes, supplementsRes, sleepsRes] =
     await Promise.all([
       supabase.from('babies').select('*').eq('id', babyId).maybeSingle(),
       supabase
@@ -166,9 +166,16 @@ Deno.serve(async (req) => {
         .eq('baby_id', babyId)
         .gte('given_at', since)
         .order('given_at', { ascending: true }),
+      supabase
+        .from('sleeps')
+        .select('*')
+        .eq('baby_id', babyId)
+        // Include any session that started in-window OR is still ongoing.
+        .or(`started_at.gte.${since},ended_at.is.null`)
+        .order('started_at', { ascending: true }),
     ])
 
-  for (const r of [babyRes, weightsRes, feedsRes, diapersRes, pumpsRes, supplementsRes]) {
+  for (const r of [babyRes, weightsRes, feedsRes, diapersRes, pumpsRes, supplementsRes, sleepsRes]) {
     if (r.error) {
       return jsonResponse(
         { error: `failed to load data: ${r.error.message}` },
@@ -189,6 +196,7 @@ Deno.serve(async (req) => {
     diapers: diapersRes.data ?? [],
     pumps: pumpsRes.data ?? [],
     supplements: supplementsRes.data ?? [],
+    sleeps: sleepsRes.data ?? [],
     rangeDays,
   })
 
@@ -678,6 +686,7 @@ interface BuildArgs {
   diapers: any[]
   pumps: any[]
   supplements: any[]
+  sleeps: any[]
   rangeDays: number
 }
 
@@ -688,6 +697,7 @@ function buildSystemPrompt({
   diapers,
   pumps,
   supplements,
+  sleeps,
   rangeDays,
 }: BuildArgs): string {
   const today = new Date().toISOString().slice(0, 10)
@@ -722,6 +732,7 @@ function buildSystemPrompt({
     diapers: diapers.length,
     pumps: pumps.length,
     supplements: supplements.length,
+    sleeps: sleeps.length,
   }
 
   const weightsSection = weights
@@ -783,6 +794,20 @@ function buildSystemPrompt({
     })
     .join('\n')
 
+  const sleepsSection = sleeps
+    .map((s) => {
+      const start = s.started_at.replace('T', ' ').slice(0, 16)
+      if (!s.ended_at) {
+        return `${start} → (ongoing)` + notesSuffix(s.notes)
+      }
+      const end = s.ended_at.replace('T', ' ').slice(0, 16)
+      const mins = Math.round(
+        (new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60000,
+      )
+      return `${start} → ${end}  ${durLabel(mins)}` + notesSuffix(s.notes)
+    })
+    .join('\n')
+
   return `You are talking directly to ${baby.name}'s parents — address them as "you" / "your". Never refer to them in the third person ("the parents", "Sam's parents", etc.). Help them make sense of their tracking logs.
 
 Be concise and concrete: cite specific numbers and dates from the data, surface trends and outliers, and call out when there isn't enough data to answer.
@@ -813,12 +838,24 @@ ${diapersSection || '(no diapers)'}
 
 # Supplements (last ${rangeDays} days, ascending)
 ${supplementsSection || '(no supplements)'}
+
+# Sleep sessions (last ${rangeDays} days, ascending; "→ (ongoing)" = still asleep)
+${sleepsSection || '(no sleep logged)'}
 `
 }
 
 function num(v: number | null | undefined, digits: number): string {
   if (v == null) return '-'
   return Number(v).toFixed(digits)
+}
+
+// Compact "1h 40m" / "45m" / "12h" label from a minute count.
+function durLabel(mins: number): string {
+  const m = Math.max(0, Math.round(mins))
+  if (m < 60) return `${m}m`
+  const h = Math.floor(m / 60)
+  const rem = m - h * 60
+  return rem > 0 ? `${h}h ${rem}m` : `${h}h`
 }
 
 function oneLine(s: string | null | undefined): string {

@@ -94,9 +94,20 @@ export interface SupplementEntry {
   created_at: string
 }
 
+export interface SleepEntry {
+  id: string
+  baby_id: string
+  started_at: string
+  // null while the baby is still asleep ("ongoing"); set when they wake.
+  ended_at: string | null
+  notes: string | null
+  created_at: string
+}
+
 export type AnyEntry =
   | ({ kind: 'weight' } & WeightEntry)
   | ({ kind: 'feed' } & FeedEntry)
   | ({ kind: 'diaper' } & DiaperEntry)
   | ({ kind: 'pump' } & PumpEntry)
   | ({ kind: 'supplement' } & SupplementEntry)
+  | ({ kind: 'sleep' } & SleepEntry)

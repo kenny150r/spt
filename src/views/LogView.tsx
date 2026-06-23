@@ -5,6 +5,7 @@ import {
   Droplet,
   LayoutGrid,
   Milk,
+  Moon,
   Pencil,
   Pill,
   Rows3,
@@ -20,11 +21,13 @@ import { AddDiaperForm } from '../components/forms/AddDiaperForm'
 import { AddWeightForm } from '../components/forms/AddWeightForm'
 import { AddPumpForm } from '../components/forms/AddPumpForm'
 import { AddSupplementForm } from '../components/forms/AddSupplementForm'
+import { AddSleepForm } from '../components/forms/AddSleepForm'
 import {
   deleteEntry,
   listDiapers,
   listFeeds,
   listPumps,
+  listSleeps,
   listSupplements,
   listWeights,
 } from '../lib/api'
@@ -34,10 +37,17 @@ import type {
   DiaperEntry,
   FeedEntry,
   PumpEntry,
+  SleepEntry,
   SupplementEntry,
   WeightEntry,
 } from '../lib/types'
-import { formatDateTime, formatWeight, timeSince, timeSinceShort } from '../lib/format'
+import {
+  formatDateTime,
+  formatDurationMin,
+  formatWeight,
+  timeSince,
+  timeSinceShort,
+} from '../lib/format'
 import { diaperTypeLabel, useVocab } from '../lib/vocab'
 import type { DiaperVocab } from '../lib/vocab'
 
@@ -48,6 +58,7 @@ type SheetState =
   | { kind: 'weight'; entry?: WeightEntry }
   | { kind: 'pump'; entry?: PumpEntry }
   | { kind: 'supplement'; entry?: SupplementEntry }
+  | { kind: 'sleep'; entry?: SleepEntry }
 
 type ViewMode = 'cards' | 'table'
 
@@ -69,6 +80,7 @@ export function LogView({ baby }: { baby: Baby }) {
   const [weights, setWeights] = useState<WeightEntry[]>([])
   const [pumps, setPumps] = useState<PumpEntry[]>([])
   const [supplements, setSupplements] = useState<SupplementEntry[]>([])
+  const [sleeps, setSleeps] = useState<SleepEntry[]>([])
   const [loading, setLoading] = useState(true)
   // We grow this in `PAGE_SIZE` increments via "See more". Each bump
   // refetches with bigger LIMITs, then the merged list is sliced down to
@@ -99,18 +111,20 @@ export function LogView({ baby }: { baby: Baby }) {
 
   const reload = useCallback(
     async (limit: number) => {
-      const [f, d, w, p, s] = await Promise.all([
+      const [f, d, w, p, s, sl] = await Promise.all([
         listFeeds(baby.id, limit),
         listDiapers(baby.id, limit),
         listWeights(baby.id),
         listPumps(baby.id, limit),
         listSupplements(baby.id, limit),
+        listSleeps(baby.id, limit),
       ])
       setFeeds(f)
       setDiapers(d)
       setWeights(w.slice().reverse())
       setPumps(p)
       setSupplements(s)
+      setSleeps(sl)
       setLoading(false)
     },
     [baby.id],
@@ -134,10 +148,11 @@ export function LogView({ baby }: { baby: Baby }) {
       ...weights.map((e) => ({ kind: 'weight' as const, ...e })),
       ...pumps.map((e) => ({ kind: 'pump' as const, ...e })),
       ...supplements.map((e) => ({ kind: 'supplement' as const, ...e })),
+      ...sleeps.map((e) => ({ kind: 'sleep' as const, ...e })),
     ]
     items.sort((a, b) => entryTime(b).localeCompare(entryTime(a)))
     return items
-  }, [feeds, diapers, weights, pumps, supplements])
+  }, [feeds, diapers, weights, pumps, supplements, sleeps])
 
   const visible = useMemo(() => merged.slice(0, displayLimit), [merged, displayLimit])
 
@@ -145,6 +160,16 @@ export function LogView({ baby }: { baby: Baby }) {
   const lastDiaper = diapers[0]
   const lastWeight = weights[0]
   const lastPump = pumps[0]
+  // Most recent unfinished sleep (baby asleep now), plus the latest
+  // finished one for the "last slept" idle state.
+  const activeSleep = useMemo(
+    () => sleeps.find((s) => s.ended_at == null) ?? null,
+    [sleeps],
+  )
+  const lastEndedSleep = useMemo(
+    () => sleeps.find((s) => s.ended_at != null) ?? null,
+    [sleeps],
+  )
 
   // Today's once-daily supplement status. Reads primarily from the dedicated
   // supplements table, but also folds in feeds.iron / feeds.multivitamin so
@@ -190,6 +215,9 @@ export function LogView({ baby }: { baby: Baby }) {
       case 'supplement':
         setSheet({ kind: 'supplement', entry: item })
         break
+      case 'sleep':
+        setSheet({ kind: 'sleep', entry: item })
+        break
     }
   }
 
@@ -204,7 +232,9 @@ export function LogView({ baby }: { baby: Baby }) {
             ? 'weights'
             : item.kind === 'pump'
               ? 'pumps'
-              : 'supplements'
+              : item.kind === 'sleep'
+                ? 'sleeps'
+                : 'supplements'
     await deleteEntry(table, item.id)
     setExpandedId((id) => (id === item.id ? null : id))
     reload(fetchLimit)
@@ -238,7 +268,8 @@ export function LogView({ baby }: { baby: Baby }) {
     feeds.length >= fetchLimit ||
     diapers.length >= fetchLimit ||
     pumps.length >= fetchLimit ||
-    supplements.length >= fetchLimit
+    supplements.length >= fetchLimit ||
+    sleeps.length >= fetchLimit
   const hasMoreToShow = displayLimit < merged.length || moreLikely
 
   return (
@@ -304,6 +335,13 @@ export function LogView({ baby }: { baby: Baby }) {
             color="bg-violet-50 text-violet-900 border-violet-100 dark:bg-violet-900/30 dark:text-violet-100 dark:border-violet-800/40"
             icon={<Scale className="h-5 w-5" />}
             onClick={() => setSheet({ kind: 'weight' })}
+          />
+          <SleepButton
+            active={activeSleep}
+            lastEnded={lastEndedSleep}
+            onClick={() =>
+              setSheet({ kind: 'sleep', entry: activeSleep ?? undefined })
+            }
           />
           <SupplementsButton
             given={supplementsToday}
@@ -456,6 +494,27 @@ export function LogView({ baby }: { baby: Baby }) {
           />
         )}
       </Sheet>
+      <Sheet
+        open={sheet.kind === 'sleep'}
+        onClose={close}
+        title={
+          sheet.kind === 'sleep' && sheet.entry
+            ? sheet.entry.ended_at == null
+              ? 'End sleep'
+              : 'Edit sleep'
+            : 'Log sleep'
+        }
+      >
+        {sheet.kind === 'sleep' && (
+          <AddSleepForm
+            key={sheet.entry?.id ?? 'new-sleep'}
+            babyId={baby.id}
+            entry={sheet.entry}
+            onSaved={onSaved}
+            onCancel={close}
+          />
+        )}
+      </Sheet>
     </div>
   )
 }
@@ -482,6 +541,8 @@ function entryTime(item: AnyEntry): string {
       return item.pumped_at
     case 'supplement':
       return item.given_at
+    case 'sleep':
+      return item.started_at
   }
 }
 
@@ -566,6 +627,17 @@ function rowVisuals(item: AnyEntry, vocab: DiaperVocab): RowVisuals {
       typeLabel: 'Supplement',
     }
   }
+  if (item.kind === 'sleep') {
+    const startMs = new Date(item.started_at).getTime()
+    const endMs = item.ended_at ? new Date(item.ended_at).getTime() : Date.now()
+    const dur = formatDurationMin((endMs - startMs) / 60000)
+    return {
+      icon: <Moon className="h-4 w-4 text-indigo-700 dark:text-indigo-400" />,
+      title: item.ended_at ? `Sleep · ${dur}` : `Asleep · ${dur} (ongoing)`,
+      time: item.started_at,
+      typeLabel: 'Sleep',
+    }
+  }
   return {
     icon: <Scale className="h-4 w-4 text-violet-700 dark:text-violet-400" />,
     title: `Weight · ${formatWeight(item.weight_kg, 'imperial')}`,
@@ -616,6 +688,24 @@ function entryDetails(
       Boolean,
     ) as string[]
     out.push({ label: 'Given', value: parts.join(' + ') || '—' })
+  } else if (item.kind === 'sleep') {
+    const startMs = new Date(item.started_at).getTime()
+    out.push({ label: 'Fell asleep', value: formatDateTime(item.started_at) })
+    if (item.ended_at) {
+      out.push({ label: 'Woke up', value: formatDateTime(item.ended_at) })
+      out.push({
+        label: 'Duration',
+        value: formatDurationMin(
+          (new Date(item.ended_at).getTime() - startMs) / 60000,
+        ),
+      })
+    } else {
+      out.push({ label: 'Status', value: 'Ongoing (asleep)' })
+      out.push({
+        label: 'So far',
+        value: formatDurationMin((Date.now() - startMs) / 60000),
+      })
+    }
   } else {
     out.push({
       label: 'Weight',
@@ -1052,6 +1142,73 @@ function SupplementsButton({
         <div className="grid grid-cols-2 gap-1.5 mt-1.5 text-xs">
           <SupplementLine name="Multivitamin" given={given.multivitamin} />
           <SupplementLine name="Iron" given={given.iron} />
+        </div>
+      </div>
+    </button>
+  )
+}
+
+// Full-width status button mirroring SupplementsButton: shows the baby's
+// current sleep state at a glance and doubles as the quick-log / "end
+// sleep" affordance. When asleep, tapping opens the active session so the
+// parent can record the wake time.
+function SleepButton({
+  active,
+  lastEnded,
+  onClick,
+}: {
+  active: SleepEntry | null
+  lastEnded: SleepEntry | null
+  onClick: () => void
+}) {
+  const asleep = active != null
+  const sinceMs = active ? Date.now() - new Date(active.started_at).getTime() : 0
+  const lastDur =
+    lastEnded && lastEnded.ended_at
+      ? formatDurationMin(
+          (new Date(lastEnded.ended_at).getTime() -
+            new Date(lastEnded.started_at).getTime()) /
+            60000,
+        )
+      : null
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={asleep ? 'End sleep' : 'Log sleep'}
+      className={`p-4 rounded-2xl border text-left flex items-start gap-3 active:scale-[0.99] transition-transform col-span-2 ${
+        asleep
+          ? 'bg-indigo-600 text-white border-indigo-600 dark:bg-indigo-600 dark:border-indigo-500'
+          : 'bg-indigo-50 text-indigo-900 border-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-100 dark:border-indigo-800/40'
+      }`}
+    >
+      <div
+        className={`h-10 w-10 rounded-xl grid place-items-center shrink-0 ${
+          asleep ? 'bg-white/20' : 'bg-white/70 dark:bg-slate-950/40'
+        }`}
+      >
+        <Moon className="h-5 w-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <div className="font-semibold leading-tight">
+            {asleep ? 'Asleep' : 'Sleep'}
+          </div>
+          <div className={`text-[11px] ${asleep ? 'opacity-90' : 'opacity-75'}`}>
+            {asleep ? 'tap to wake' : 'tap to log'}
+          </div>
+        </div>
+        <div className={`text-xs mt-0.5 ${asleep ? 'opacity-90' : 'opacity-75'}`}>
+          {asleep
+            ? `Asleep for ${formatDurationMin(sinceMs / 60000)} · since ${format(
+                new Date(active!.started_at),
+                'h:mm a',
+              )}`
+            : lastEnded && lastEnded.ended_at
+              ? `Last slept ${timeSinceShort(lastEnded.ended_at)} ago${
+                  lastDur ? ` · ${lastDur}` : ''
+                }`
+              : 'No sleep logged yet'}
         </div>
       </div>
     </button>

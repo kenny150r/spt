@@ -262,7 +262,8 @@ function ExportCard({ baby }: { baby: Baby }) {
         snapshot.counts.feeds +
         snapshot.counts.diapers +
         snapshot.counts.pumps +
-        snapshot.counts.supplements
+        snapshot.counts.supplements +
+        snapshot.counts.sleeps
       setLastDownload({ file, bytes: blob.size, rows: totalRows })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Export failed')
@@ -277,8 +278,8 @@ function ExportCard({ baby }: { baby: Baby }) {
         Export data
       </h2>
       <p className="text-xs text-slate-500 mb-3 dark:text-slate-400">
-        Downloads every weight, feed, diaper, pump, and supplement entry
-        for <span className="font-medium">{baby.name}</span> as a single
+        Downloads every weight, feed, diaper, pump, supplement, and sleep
+        entry for <span className="font-medium">{baby.name}</span> as a single
         JSON file. Safe to AirDrop or stash in iCloud / Dropbox.
       </p>
       <button

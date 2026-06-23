@@ -219,6 +219,19 @@ create table if not exists public.supplements (
 create index if not exists supplements_baby_given_at_idx
   on public.supplements (baby_id, given_at desc);
 
+create table if not exists public.sleeps (
+  id          uuid primary key default gen_random_uuid(),
+  baby_id     uuid not null references public.babies(id) on delete cascade,
+  started_at  timestamptz not null default now(),
+  -- NULL while the baby is still asleep ("ongoing"); set when they wake.
+  ended_at    timestamptz,
+  notes       text,
+  created_at  timestamptz not null default now(),
+  constraint sleeps_interval_chk check (ended_at is null or ended_at >= started_at)
+);
+create index if not exists sleeps_baby_started_at_idx
+  on public.sleeps (baby_id, started_at desc);
+
 ------------------------------------------------------------
 -- Row Level Security: any signed-in user can read/write.
 -- Restrict who can sign in via Supabase Dashboard > Authentication
@@ -230,6 +243,7 @@ alter table public.feeds       enable row level security;
 alter table public.diapers     enable row level security;
 alter table public.pumps       enable row level security;
 alter table public.supplements enable row level security;
+alter table public.sleeps      enable row level security;
 
 -- Drop existing policies first so the script is idempotent.
 drop policy if exists "auth read"   on public.babies;
@@ -262,12 +276,17 @@ drop policy if exists "auth write"  on public.supplements;
 drop policy if exists "auth update" on public.supplements;
 drop policy if exists "auth delete" on public.supplements;
 
+drop policy if exists "auth read"   on public.sleeps;
+drop policy if exists "auth write"  on public.sleeps;
+drop policy if exists "auth update" on public.sleeps;
+drop policy if exists "auth delete" on public.sleeps;
+
 -- Create policies for each table: any authenticated user has full access.
 do $$
 declare
   t text;
 begin
-  foreach t in array array['babies', 'weights', 'feeds', 'diapers', 'pumps', 'supplements']
+  foreach t in array array['babies', 'weights', 'feeds', 'diapers', 'pumps', 'supplements', 'sleeps']
   loop
     execute format('create policy "auth read"   on public.%I for select to authenticated using (true);', t);
     execute format('create policy "auth write"  on public.%I for insert to authenticated with check (true);', t);
