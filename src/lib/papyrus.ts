@@ -7,12 +7,15 @@ import { useCallback, useEffect, useState } from 'react'
 // does the cascading once the class is on the root.
 const STORAGE_KEY = 'spt-papyrus-v1'
 
+// Defaults to ON: Papyrus mode is enabled for everyone unless they've
+// explicitly turned it off (stored '0'). New/untouched devices get the
+// glorious default.
 export function loadPapyrus(): boolean {
-  if (typeof localStorage === 'undefined') return false
+  if (typeof localStorage === 'undefined') return true
   try {
-    return localStorage.getItem(STORAGE_KEY) === '1'
+    return localStorage.getItem(STORAGE_KEY) !== '0'
   } catch {
-    return false
+    return true
   }
 }
 
