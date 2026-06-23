@@ -22,6 +22,11 @@
             ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
             : mode
           if (resolved === 'dark') document.documentElement.classList.add('dark')
+          // Joke setting: apply Papyrus before paint so the font doesn't
+          // pop in after mount. Mirrors loadPapyrus() in src/lib/papyrus.ts.
+          if (localStorage.getItem('spt-papyrus-v1') === '1') {
+            document.documentElement.classList.add('papyrus')
+          }
         } catch (e) {}
       })()
     </script>

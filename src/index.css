@@ -16,6 +16,15 @@
   body {
     @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
   }
+  /* Joke setting (Settings → Appearance): swap the whole app to Papyrus.
+     Scoped to `html.papyrus` so it out-specifies Tailwind's preflight
+     `html` font rule and cascades everywhere via inherit. Monospace code
+     blocks keep their own family on purpose so they stay legible. */
+  html.papyrus,
+  html.papyrus body {
+    font-family: 'Papyrus', 'Comic Sans MS', 'Bradley Hand', 'Segoe Print',
+      cursive, system-ui, sans-serif;
+  }
 }
 
 @layer components {

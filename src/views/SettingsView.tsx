@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Bell, Download, Monitor, Moon, Sun } from 'lucide-react'
+import { Bell, Download, Feather, Monitor, Moon, Sun } from 'lucide-react'
 import { exportBabyData, updateBaby } from '../lib/api'
 import { toDateInput } from '../lib/format'
 import type { Baby, Sex } from '../lib/types'
@@ -7,6 +7,7 @@ import { useVocab } from '../lib/vocab'
 import type { VocabMode } from '../lib/vocab'
 import { useTheme } from '../lib/theme'
 import type { ThemeMode } from '../lib/theme'
+import { usePapyrus } from '../lib/papyrus'
 
 // Keep in sync with DEFAULT_STALE_HOURS_* in LogView.tsx. Duplicated
 // here so the Settings form can show a meaningful placeholder.
@@ -335,6 +336,7 @@ const THEME_OPTIONS: {
 // (e.g. when iOS rolls over at sunset).
 function AppearanceCard() {
   const { mode, setMode, resolved } = useTheme()
+  const { enabled: papyrus, setEnabled: setPapyrus } = usePapyrus()
   return (
     <section className="card p-5">
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-1 dark:text-slate-400">
@@ -371,6 +373,36 @@ function AppearanceCard() {
           </button>
         ))}
       </div>
+
+      <button
+        type="button"
+        onClick={() => setPapyrus(!papyrus)}
+        aria-pressed={papyrus}
+        className={`mt-2 w-full p-3 rounded-2xl border text-left flex items-center gap-3 active:scale-[0.99] transition-transform ${
+          papyrus
+            ? 'bg-amber-600 text-white border-amber-600 dark:bg-amber-600 dark:border-amber-500'
+            : 'bg-white border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200'
+        }`}
+      >
+        <div
+          className={`h-9 w-9 rounded-xl grid place-items-center shrink-0 ${
+            papyrus ? 'bg-white/20' : 'bg-slate-50 dark:bg-slate-950/40'
+          }`}
+        >
+          <Feather className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-sm font-semibold leading-tight">Papyrus mode</div>
+            <div className={`text-[11px] ${papyrus ? 'opacity-90' : 'opacity-75'}`}>
+              {papyrus ? 'on' : 'off'}
+            </div>
+          </div>
+          <div className={`text-[11px] mt-0.5 ${papyrus ? 'opacity-90' : 'text-slate-500 dark:text-slate-400'}`}>
+            Render the entire app in Papyrus. A crime against typography.
+          </div>
+        </div>
+      </button>
     </section>
   )
 }
