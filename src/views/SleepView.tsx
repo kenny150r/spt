@@ -48,7 +48,7 @@ interface SleepHourBin {
   hour: number // 0..23
   label: string // e.g. "12a", "3p"
   range: string // e.g. "2p–3p"
-  todayMin: number
+  todayMin: number | null // null for hours later than now (not happened yet)
   avgMin: number
   priorDays: number
 }
@@ -88,8 +88,9 @@ export function SleepView({ baby }: { baby: Baby }) {
   const [sheet, setSheet] = useState<{ open: boolean; entry?: SleepEntry }>({
     open: false,
   })
-  // Minute tick so an ongoing sleep's "so far" duration keeps advancing.
-  const [, setTick] = useState(0)
+  // Minute tick so an ongoing sleep's "so far" duration keeps advancing and
+  // the time-of-day chart's "now" cutoff moves forward.
+  const [tick, setTick] = useState(0)
   useEffect(() => {
     const id = setInterval(() => setTick((n) => n + 1), 60_000)
     return () => clearInterval(id)
@@ -238,15 +239,20 @@ export function SleepView({ baby }: { baby: Baby }) {
       }
       for (let h = 0; h < 24; h++) avgHours[h] /= priorDays.length
     }
+    // Hours later than the current one haven't happened yet today, so leave
+    // them null instead of plotting 0 — that keeps the "Today" area from
+    // diving to the baseline right after now.
+    const nowHour = new Date().getHours()
     return Array.from({ length: 24 }, (_, h) => ({
       hour: h,
       label: formatHour(h),
       range: `${formatHour(h)}–${formatHour((h + 1) % 24)}`,
-      todayMin: Math.round(todayHours[h]),
+      todayMin: h > nowHour ? null : Math.round(todayHours[h]),
       avgMin: +avgHours[h].toFixed(1),
       priorDays: priorDays.length,
     }))
-  }, [sleeps])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sleeps, tick])
 
   const avgDaysUsed = hourlyData[0]?.priorDays ?? 0
 
@@ -417,6 +423,7 @@ export function SleepView({ baby }: { baby: Baby }) {
                     fillOpacity={0.22}
                     strokeWidth={2}
                     dot={false}
+                    connectNulls={false}
                   />
                   <Line
                     type="monotone"
