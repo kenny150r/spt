@@ -401,10 +401,7 @@ export function SleepView({ baby }: { baby: Baby }) {
                   <Tooltip
                     contentStyle={{ background: t.tooltipBg, border: `1px solid ${t.tooltipBorder}`, color: t.tooltipText }}
                     labelStyle={{ color: t.tooltipText }}
-                    formatter={(v, n) => [
-                      `${Math.round(Number(v))} min`,
-                      n === 'todayMin' ? 'Today' : '7-day avg',
-                    ]}
+                    formatter={(v, n) => [`${Math.round(Number(v))} min`, n]}
                     labelFormatter={(_l, payload) => payload?.[0]?.payload?.range ?? ''}
                   />
                   <Legend
