@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { addDays, addHours, format, startOfDay, subDays } from 'date-fns'
+import { addDays, addHours, format, startOfDay, startOfHour, subDays } from 'date-fns'
 import { Moon, Plus } from 'lucide-react'
 import {
+  Area,
   Bar,
   BarChart,
   CartesianGrid,
+  ComposedChart,
   Legend,
+  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -39,6 +42,22 @@ interface DayBucket {
   dayMin: number
   nightMin: number
   sessions: number
+}
+
+interface SleepHourBin {
+  hour: number // 0..23
+  label: string // e.g. "12a", "3p"
+  range: string // e.g. "2p–3p"
+  todayMin: number
+  avgMin: number
+  priorDays: number
+}
+
+function formatHour(h: number): string {
+  if (h === 0) return '12a'
+  if (h === 12) return '12p'
+  if (h < 12) return `${h}a`
+  return `${h - 12}p`
 }
 
 function isNight(d: Date): boolean {
@@ -84,7 +103,11 @@ export function SleepView({ baby }: { baby: Baby }) {
 
   const reload = useCallback(async () => {
     setLoading(true)
-    const since = startOfDay(subDays(new Date(), days - 1)).toISOString()
+    // Fetch at least 8 days (today + 7 prior) so the time-of-day chart's
+    // 7-day average always has a full week to draw from, even on the 7d
+    // range. The daily charts below only read the first `days` buckets.
+    const fetchDays = Math.max(days, 8)
+    const since = startOfDay(subDays(new Date(), fetchDays - 1)).toISOString()
     const data = await listSleepsSince(baby.id, since)
     setSleeps(data)
     setLoading(false)
@@ -180,6 +203,52 @@ export function SleepView({ baby }: { baby: Baby }) {
     }
     return max
   }, [sleeps])
+
+  // Time-of-day pattern: minutes asleep in each clock hour, for today vs the
+  // average over the previous days with data. Sessions are split at hour
+  // boundaries so a long stretch lands in every hour it actually covers.
+  // Days with zero logged sleep are excluded from the average's denominator
+  // (almost always "didn't track" rather than "didn't sleep"), mirroring the
+  // Feeding view's hourly chart.
+  const hourlyData = useMemo<SleepHourBin[]>(() => {
+    const todayKey = format(new Date(), 'yyyy-MM-dd')
+    const byDayHour = new Map<string, number[]>() // 24 bins per day, minutes
+    const now = Date.now()
+    for (const s of sleeps) {
+      let cursor = new Date(s.started_at).getTime()
+      const endMs = s.ended_at ? new Date(s.ended_at).getTime() : now
+      let guard = 0
+      while (cursor < endMs && guard++ < 24 * 40) {
+        const segEnd = Math.min(endMs, addHours(startOfHour(new Date(cursor)), 1).getTime())
+        const d = new Date(cursor)
+        const key = format(d, 'yyyy-MM-dd')
+        if (!byDayHour.has(key)) byDayHour.set(key, new Array(24).fill(0))
+        byDayHour.get(key)![d.getHours()] += (segEnd - cursor) / 60000
+        cursor = segEnd
+      }
+    }
+    const todayHours = byDayHour.get(todayKey) ?? new Array(24).fill(0)
+    const priorDays = Array.from(byDayHour.entries())
+      .filter(([k]) => k !== todayKey)
+      .slice(-7) // most recent 7 prior days with data
+    const avgHours = new Array(24).fill(0)
+    if (priorDays.length > 0) {
+      for (const [, hours] of priorDays) {
+        for (let h = 0; h < 24; h++) avgHours[h] += hours[h]
+      }
+      for (let h = 0; h < 24; h++) avgHours[h] /= priorDays.length
+    }
+    return Array.from({ length: 24 }, (_, h) => ({
+      hour: h,
+      label: formatHour(h),
+      range: `${formatHour(h)}–${formatHour((h + 1) % 24)}`,
+      todayMin: Math.round(todayHours[h]),
+      avgMin: +avgHours[h].toFixed(1),
+      priorDays: priorDays.length,
+    }))
+  }, [sleeps])
+
+  const avgDaysUsed = hourlyData[0]?.priorDays ?? 0
 
   const close = () => setSheet({ open: false })
 
@@ -299,6 +368,74 @@ export function SleepView({ baby }: { baby: Baby }) {
                 <Bar dataKey="sessions" radius={[4, 4, 0, 0]} fill={nightFill} />
               </BarChart>
             </ChartCard>
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2 dark:text-slate-400">
+          Time of day · today vs 7-day avg
+        </h2>
+        {loading ? (
+          <div className="card p-6 text-sm text-slate-500 text-center dark:text-slate-400">Loading…</div>
+        ) : (
+          <div className="card p-4">
+            <div className="h-[220px] -mx-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={hourlyData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
+                  <CartesianGrid stroke={t.grid} strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 11, fill: t.axis }}
+                    stroke={t.axis}
+                    interval={2}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: t.axis }}
+                    stroke={t.axis}
+                    domain={[0, 60]}
+                    ticks={[0, 15, 30, 45, 60]}
+                    unit="m"
+                    width={36}
+                  />
+                  <Tooltip
+                    contentStyle={{ background: t.tooltipBg, border: `1px solid ${t.tooltipBorder}`, color: t.tooltipText }}
+                    labelStyle={{ color: t.tooltipText }}
+                    formatter={(v, n) => [
+                      `${Math.round(Number(v))} min`,
+                      n === 'todayMin' ? 'Today' : '7-day avg',
+                    ]}
+                    labelFormatter={(_l, payload) => payload?.[0]?.payload?.range ?? ''}
+                  />
+                  <Legend
+                    verticalAlign="top"
+                    wrapperStyle={{ fontSize: 11, paddingBottom: 4, color: t.legend }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="todayMin"
+                    name="Today"
+                    stroke={nightFill}
+                    fill={nightFill}
+                    fillOpacity={0.22}
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="avgMin"
+                    name="7-day avg"
+                    stroke={t.bars.amber}
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="text-[11px] text-slate-400 text-center mt-1 dark:text-slate-500">
+              Minutes asleep per clock hour · average over{' '}
+              {avgDaysUsed > 0 ? `${avgDaysUsed} prior day${avgDaysUsed === 1 ? '' : 's'}` : 'prior days'}
+            </p>
           </div>
         )}
       </section>
