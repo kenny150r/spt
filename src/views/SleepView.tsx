@@ -215,12 +215,30 @@ export function SleepView({ baby }: { baby: Baby }) {
     const todayKey = format(new Date(), 'yyyy-MM-dd')
     const byDayHour = new Map<string, number[]>() // 24 bins per day, minutes
     const now = Date.now()
-    for (const s of sleeps) {
-      let cursor = new Date(s.started_at).getTime()
-      const endMs = s.ended_at ? new Date(s.ended_at).getTime() : now
+    // Merge overlapping sessions first. Without this, two sessions covering the
+    // same clock hour (e.g. a double-logged or still-open entry) would each add
+    // their minutes to that hour, pushing a single hour's total above 60.
+    const intervals = sleeps
+      .map((s) => ({
+        start: new Date(s.started_at).getTime(),
+        end: s.ended_at ? new Date(s.ended_at).getTime() : now,
+      }))
+      .filter((iv) => iv.end > iv.start)
+      .sort((a, b) => a.start - b.start)
+    const merged: { start: number; end: number }[] = []
+    for (const iv of intervals) {
+      const last = merged[merged.length - 1]
+      if (last && iv.start <= last.end) {
+        last.end = Math.max(last.end, iv.end)
+      } else {
+        merged.push({ ...iv })
+      }
+    }
+    for (const iv of merged) {
+      let cursor = iv.start
       let guard = 0
-      while (cursor < endMs && guard++ < 24 * 40) {
-        const segEnd = Math.min(endMs, addHours(startOfHour(new Date(cursor)), 1).getTime())
+      while (cursor < iv.end && guard++ < 24 * 400) {
+        const segEnd = Math.min(iv.end, addHours(startOfHour(new Date(cursor)), 1).getTime())
         const d = new Date(cursor)
         const key = format(d, 'yyyy-MM-dd')
         if (!byDayHour.has(key)) byDayHour.set(key, new Array(24).fill(0))
